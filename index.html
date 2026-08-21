@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麻酔準備ナビ＆計算アシスト</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 900px;
+            margin: auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        /* タブのスタイル */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            background-color: #f0f0f0;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+            transition: background-color 0.3s;
+        }
+        .tab-btn:hover {
+            background-color: #e0e0e0;
+        }
+        .tab-btn.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        /* 共通要素 */
+        .section { margin-bottom: 20px; }
+        select, input { padding: 8px; font-size: 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        input[type="number"] { width: 70px; }
+        button.action-btn { 
+            background-color: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            border-radius: 4px; 
+        }
+        button.action-btn.calc {
+            background-color: #28a745;
+        }
+        /* リスト用スタイル */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .highlight { color: #dc3545; font-weight: bold; }
+        .why-btn { background-color: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .why-text { display: none; background-color: #eef; padding: 10px; margin-top: 8px; border-radius: 4px; font-size: 14px; border-left: 4px solid #17a2b8; }
+        /* 計算結果用スタイル */
+        .step-box {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-left: 5px solid #007bff;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 18px;
+            border-radius: 4px;
+        }
+        .logic-box {
+            background-color: #fff3e0;
+            padding: 15px;
+            border-left: 5px solid #ff9800;
+            margin-top: 20px;
+            font-size: 15px;
+            line-height: 1.6;
+            border-radius: 4px;
+        }
+        .input-group {
+            background: #f9f9f9;
+            padding: 15px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            display: inline-block;
+            vertical-align: top;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>麻酔業務アシスト（プロトタイプ）</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('nav-tab')">① 準備ナビ</button>
+        <button class="tab-btn" onclick="switchTab('calc-tab')">② 薬剤計算アシスト</button>
+    </div>
+
+    <!-- タブ1: 準備ナビ -->
+    <div id="nav-tab" class="tab-content active">
+        <div class="section">
+            <label>術式を選択してください:</label>
+            <select id="procedure-select">
+                <option value="">-- 選択 --</option>
+                <option value="kuwana_zenshin">桑名Dr / 泌尿器：膀胱癌 (全身麻酔)</option>
+                <option value="kuwana_sekima">桑名Dr / 整形：左大腿転子部骨折 (脊椎麻酔)</option>
+            </select>
+            <button class="action-btn" onclick="showPreparationList()">リストを表示</button>
+        </div>
+        <div id="result-area" class="section" style="display: none;">
+            <h2 id="result-title"></h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>カテゴリ</th>
+                        <th>アイテム名</th>
+                        <th>規格・準備量</th>
+                        <th>金庫管理</th>
+                        <th>ワンポイントWhy</th>
+                    </tr>
+                </thead>
+                <tbody id="result-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- タブ2: 薬剤計算アシスト -->
+    <div id="calc-tab" class="tab-content">
+        <div class="section">
+            <label>よく使う薬剤のプリセット：</label>
+            <select id="drug-preset" onchange="loadPreset()">
+                <option value="">-- 手動入力 --</option>
+                <option value="ephedrine">エフェドリン (40mg/1ml)</option>
+                <option value="neosynephrine">ネオシネジン (1mg/1ml)</option>
+            </select>
+        </div>
+        
+        <div>
+            <div class="input-group">
+                <strong>【原液情報】</strong><br><br>
+                濃度: <input type="number" id="stock-mg" value="40"> mg / 
+                <input type="number" id="stock-ml" value="1"> ml
+            </div>
+            
+            <div class="input-group">
+                <strong>【作成したい目標】</strong><br><br>
+                濃度: <input type="number" id="target-mg" value="4"> mg / 
+                <input type="number" id="target-ml" value="1"> ml<br><br>
+                作成総量: <input type="number" id="total-ml" value="10"> ml
+            </div>
+        </div>
+        
+        <button class="action-btn calc" onclick="calculateDilution()">計算して手順を表示</button>
+
+        <div id="calc-result" class="section" style="display: none; margin-top: 20px;">
+            <h3>👨‍⚕️ シリンジ作成手順ガイド</h3>
+            
+            <div class="step-box">
+                Step 1: 原液を <span id="res-stock-ml" style="color:#dc3545; font-size:24px;"></span> ml 吸う
+            </div>
+            
+            <div class="step-box">
+                Step 2: 生理食塩水などを <span id="res-diluent-ml" style="color:#dc3545; font-size:24px;"></span> ml 足す
+            </div>
+
+            <div class="step-box" style="background-color:#d4edda; border-left-color:#28a745;">
+                Step 3: 全量 <span id="res-total-ml" style="color:#dc3545; font-size:24px;"></span> ml になり完成！
+            </div>
+
+            <div class="logic-box">
+                <strong>💡 【教育アプローチ】希釈のロジック</strong><br><br>
+                ① 目標とする薬の総量は、<span id="log-t-mg"></span>mg / <span id="log-t-ml"></span>ml × <span id="log-total"></span>ml ＝ <b><span id="log-req-mg"></span>mg</b> です。<br><br>
+                ② 原液の濃度は <span id="log-s-mg"></span>mg / <span id="log-s-ml"></span>ml なので、必要な原液量は <span id="log-req-mg2"></span>mg ÷ 原液濃度 ＝ <b><span id="log-req-ml"></span>ml</b> となります。<br><br>
+                ③ 目的の量（<span id="log-total2"></span>ml）にするため、残りの <b><span id="log-diluent"></span>ml</b> を希釈液で薄めます。
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // タブ切り替えロジック
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        // イベントの発火元ボタンをアクティブにする
+        event.currentTarget.classList.add('active');
+    }
+
+    // --- タブ1：準備ナビのロジック ---
+    const database = {
+        "kuwana_zenshin": {
+            title: "桑名Dr / 泌尿器：膀胱癌 (全身麻酔)",
+            items: [
+                { category: "薬剤（鎮静）", name: "プロポフォール", spec: "20ml (20ccロック+18G)", kinko: false, why: "寝かせるため。起きている状態で筋弛緩すると金縛りにあった様になってしまうため注意。" },
+                { category: "薬剤（筋弛緩）", name: "ロクロニウム", spec: "50mg/5.0ml (5ccロック+18G)", kinko: true, why: "自発呼吸も完全に止まるため人工呼吸器管理が必要。効果が出るのが遅い。" },
+                { category: "薬剤（鎮痛）", name: "レミフェンタニル", spec: "2mg/20ml (20ccロック＋18G)", kinko: true, why: "シリンジポンプで持続投与するため、赤くて細いエクステンションをつける。" },
+                { category: "薬剤（昇圧）", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, why: "生食で希釈し4mg/1mlにする。NIBPのmean60を下回ったら使用。" },
+                { category: "気道確保", name: "アイゲル(LMA)", spec: "サイズ：#4", kinko: false, why: "男性は4、女性は3が目安。" }
+            ]
+        },
+        "kuwana_sekima": {
+            title: "桑名Dr / 整形：左大腿転子部骨折 (脊椎麻酔)",
+            items: [
+                { category: "麻酔針", name: "25G ペンシル針", spec: "L3/4 para", kinko: false, why: "ペンシル型は硬膜の繊維を「押し広げて」進むため、硬膜穿刺後頭痛（PDPH）が発生しにくい。" },
+                { category: "輸液", name: "フィジオ（酢酸リンゲル液）", spec: "500ml", kinko: false, why: "末梢組織でも素早く代謝されてアルカリに変わる「酢酸」を含み、安全に酸塩基平衡を補正できる。" },
+                { category: "薬剤（昇圧）", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, why: "生食で希釈し4mg/1mlにする。脊麻による血圧低下時に使用。" }
+            ]
+        }
+    };
+
+    function showPreparationList() {
+        const selectedValue = document.getElementById("procedure-select").value;
+        const resultTbody = document.getElementById("result-tbody");
+        resultTbody.innerHTML = "";
+
+        if (!selectedValue) {
+            document.getElementById("result-area").style.display = "none";
+            return;
+        }
+
+        const data = database[selectedValue];
+        document.getElementById("result-title").textContent = data.title;
+
+        data.items.forEach((item, index) => {
+            const tr = document.createElement("tr");
+            const kinkoMark = item.kinko ? '<span class="highlight">★必須</span>' : '不要';
+            const whyId = `why-${index}`;
+            const whyHtml = item.why ? `<button class="why-btn" onclick="toggleWhy('${whyId}')">Why?</button><div id="${whyId}" class="why-text">${item.why}</div>` : '';
+
+            tr.innerHTML = `<td>${item.category}</td><td>${item.name}</td><td>${item.spec}</td><td>${kinkoMark}</td><td>${whyHtml}</td>`;
+            resultTbody.appendChild(tr);
+        });
+        document.getElementById("result-area").style.display = "block";
+    }
+
+    function toggleWhy(id) {
+        const el = document.getElementById(id);
+        el.style.display = (el.style.display === "none" || el.style.display === "") ? "block" : "none";
+    }
+
+    // --- タブ2：薬剤計算アシストのロジック ---
+    function loadPreset() {
+        const val = document.getElementById("drug-preset").value;
+        if (val === "ephedrine") {
+            document.getElementById("stock-mg").value = 40;
+            document.getElementById("stock-ml").value = 1;
+            document.getElementById("target-mg").value = 4;
+            document.getElementById("target-ml").value = 1;
+            document.getElementById("total-ml").value = 10;
+        } else if (val === "neosynephrine") {
+            document.getElementById("stock-mg").value = 1;
+            document.getElementById("stock-ml").value = 1;
+            document.getElementById("target-mg").value = 0.1;
+            document.getElementById("target-ml").value = 1;
+            document.getElementById("total-ml").value = 10;
+        }
+    }
+
+    function calculateDilution() {
+        const stockMg = parseFloat(document.getElementById("stock-mg").value);
+        const stockMl = parseFloat(document.getElementById("stock-ml").value);
+        const targetMg = parseFloat(document.getElementById("target-mg").value);
+        const targetMl = parseFloat(document.getElementById("target-ml").value);
+        const totalMl = parseFloat(document.getElementById("total-ml").value);
+
+        if (!stockMg || !stockMl || !targetMg || !targetMl || !totalMl) {
+            alert("数値を正しく入力してください");
+            return;
+        }
+
+        // 計算ロジック
+        const stockConc = stockMg / stockMl;
+        const targetConc = targetMg / targetMl;
+        const requiredTotalMg = targetConc * totalMl;
+        const requiredStockMl = requiredTotalMg / stockConc;
+        const diluentMl = totalMl - requiredStockMl;
+
+        // 結果の描画（手順）
+        document.getElementById("res-stock-ml").textContent = requiredStockMl;
+        document.getElementById("res-diluent-ml").textContent = diluentMl;
+        document.getElementById("res-total-ml").textContent = totalMl;
+
+        // 結果の描画（教育ロジック）
+        document.getElementById("log-t-mg").textContent = targetMg;
+        document.getElementById("log-t-ml").textContent = targetMl;
+        document.getElementById("log-total").textContent = totalMl;
+        document.getElementById("log-req-mg").textContent = requiredTotalMg;
+        
+        document.getElementById("log-s-mg").textContent = stockMg;
+        document.getElementById("log-s-ml").textContent = stockMl;
+        document.getElementById("log-req-mg2").textContent = requiredTotalMg;
+        document.getElementById("log-req-ml").textContent = requiredStockMl;
+        
+        document.getElementById("log-total2").textContent = totalMl;
+        document.getElementById("log-diluent").textContent = diluentMl;
+
+        document.getElementById("calc-result").style.display = "block";
+    }
+</script>
+
+</body>
+</html>

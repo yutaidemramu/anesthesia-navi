@@ -272,7 +272,7 @@
             margin-bottom: 12px;
             font-size: 15px;
         }
-        .input-row strong { width: 50px; color: #8E8E93; }
+        .input-row strong { width: 50px; color: #8E8E93; flex-shrink: 0; }
         .input-group {
             margin-bottom: 16px;
             padding-bottom: 16px;
@@ -283,6 +283,30 @@
             margin-bottom: 0;
             padding-bottom: 0;
         }
+        
+        /* 追加: 計算モード切り替え用 */
+        .calc-mode-selector {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            background-color: #F2F2F7;
+            padding: 12px;
+            border-radius: 10px;
+        }
+        .calc-mode-selector label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0;
+            font-size: 15px;
+            color: #1C1C1E;
+            cursor: pointer;
+        }
+        .calc-mode-selector input[type="radio"] {
+            width: auto;
+            margin-right: 8px;
+            margin-bottom: 0;
+        }
+
         .step-box {
             display: flex;
             align-items: center;
@@ -451,39 +475,65 @@
         </div>
     </div>
 
-    <!-- タブ2: 薬剤計算アシスト（省略せずそのまま） -->
+    <!-- タブ2: 薬剤計算アシスト -->
     <div id="calc-tab" class="tab-content">
         <div class="card">
             <label>よく使う薬剤のプリセット</label>
             <select id="drug-preset" onchange="loadPreset()" style="margin-bottom: 0;">
                 <option value="">-- 手動入力 --</option>
                 <option value="ephedrine">エフェドリン (40mg/1ml)</option>
-                <option value="neosynephrine_1">ネオシネジン 1mg＋9mL (0.1mg/1ml)</option>
-                <option value="neosynephrine_2">ネオシネジン 2mg＋18mL (0.1mg/1ml)</option>
-                <option value="neosynephrine_5">ネオシネジン 5mg＋49mL (0.1mg/1ml)</option>
+                <option value="neosynephrine">ネオシネジン (1mg/1ml)</option>
             </select>
         </div>
         
         <div class="card">
+            <!-- 課題3対応: 計算モードの切り替え -->
+            <div class="calc-mode-selector">
+                <label>
+                    <input type="radio" name="calc-mode" value="target-conc" checked onchange="toggleCalcMode()">
+                    目標濃度から計算
+                </label>
+                <label>
+                    <input type="radio" name="calc-mode" value="ampoule" onchange="toggleCalcMode()">
+                    アンプル数から計算
+                </label>
+            </div>
+
             <div class="input-group">
                 <label>原液情報</label>
                 <div class="input-row">
+                    <!-- 課題9対応: step="any" を追加 -->
                     <strong>濃度</strong>
-                    <input type="number" id="stock-mg" value="40"> <span style="margin-right: 12px;">mg</span> / 
-                    <input type="number" id="stock-ml" value="1" style="margin-left: 12px;"> <span>ml</span>
+                    <input type="number" id="stock-mg" value="40" step="any"> <span style="margin-right: 12px;">mg</span> / 
+                    <input type="number" id="stock-ml" value="1" step="any" style="margin-left: 12px;"> <span>ml</span>
                 </div>
             </div>
             
-            <div class="input-group">
+            <!-- モードA: 目標濃度から計算するエリア -->
+            <div class="input-group" id="mode-target-conc">
                 <label>作成したい目標</label>
                 <div class="input-row">
+                    <!-- 課題9対応: step="any" を追加 -->
                     <strong>濃度</strong>
-                    <input type="number" id="target-mg" value="4"> <span style="margin-right: 12px;">mg</span> / 
-                    <input type="number" id="target-ml" value="1" style="margin-left: 12px;"> <span>ml</span>
+                    <input type="number" id="target-mg" value="4" step="any"> <span style="margin-right: 12px;">mg</span> / 
+                    <input type="number" id="target-ml" value="1" step="any" style="margin-left: 12px;"> <span>ml</span>
                 </div>
                 <div class="input-row">
                     <strong>総量</strong>
-                    <input type="number" id="total-ml" value="10"> <span>ml</span>
+                    <input type="number" id="total-ml-a" value="10" step="any"> <span>ml</span>
+                </div>
+            </div>
+
+            <!-- モードB: アンプル数から計算するエリア (初期は非表示) -->
+            <div class="input-group" id="mode-ampoule" style="display: none;">
+                <label>使用量と作成総量</label>
+                <div class="input-row">
+                    <strong>使用量</strong>
+                    <input type="number" id="use-ampoule" value="1" step="any"> <span>アンプル (または本)</span>
+                </div>
+                <div class="input-row">
+                    <strong>総量</strong>
+                    <input type="number" id="total-ml-b" value="10" step="any"> <span>ml</span>
                 </div>
             </div>
             
@@ -504,11 +554,25 @@
                 <div class="step-label"><span style="color:#8E8E93; margin-right:8px;">3</span>完成（全量）</div>
                 <div><span id="res-total-ml" class="step-value finish"></span><span class="step-unit">ml</span></div>
             </div>
-            <div class="logic-box">
+            
+            <!-- 完成時の濃度表示 (モードBの時に重要) -->
+            <div class="step-box" style="background-color: #F2F2F7; border-bottom: none; margin-top: 10px; border-radius: 8px;">
+                <div class="step-label">完成濃度</div>
+                <div><span id="res-final-conc" class="step-value" style="color: #1C1C1E; font-size: 20px;"></span></div>
+            </div>
+
+            <div class="logic-box" id="logic-box-a">
                 <strong>💡 希釈のロジック</strong><br><br>
                 ① 目標とする薬の総量は、<span id="log-t-mg"></span>mg / <span id="log-t-ml"></span>ml × <span id="log-total"></span>ml ＝ <b><span id="log-req-mg"></span>mg</b> です。<br><br>
                 ② 原液の濃度は <span id="log-s-mg"></span>mg / <span id="log-s-ml"></span>ml なので、必要な原液量は <span id="log-req-mg2"></span>mg ÷ 原液濃度 ＝ <b><span id="log-req-ml"></span>ml</b> となります。<br><br>
                 ③ 目的の量（<span id="log-total2"></span>ml）にするため、残りの <b><span id="log-diluent"></span>ml</b> を希釈液で薄めます。
+            </div>
+
+            <div class="logic-box" id="logic-box-b" style="display: none;">
+                <strong>💡 希釈のロジック (アンプル指定)</strong><br><br>
+                ① 原液 <span id="log-b-amp"></span> アンプル分（<span id="log-b-stock-ml"></span>ml）を吸います。<br><br>
+                ② 目的の量（<span id="log-b-total"></span>ml）にするため、残りの <b><span id="log-b-diluent"></span>ml</b> を希釈液で薄めます。<br><br>
+                ③ この結果、シリンジ内の薬液濃度は <b><span id="log-b-final-conc"></span></b> になります。
             </div>
         </div>
     </div>
@@ -679,60 +743,128 @@
             document.getElementById("stock-ml").value = 1;
             document.getElementById("target-mg").value = 4;
             document.getElementById("target-ml").value = 1;
-            document.getElementById("total-ml").value = 10;
-        } else if (val === "neosynephrine_1") {
+            document.getElementById("total-ml-a").value = 10;
+            document.getElementById("total-ml-b").value = 10;
+            document.getElementById("use-ampoule").value = 1;
+        } else if (val === "neosynephrine") {
             document.getElementById("stock-mg").value = 1;
             document.getElementById("stock-ml").value = 1;
             document.getElementById("target-mg").value = 0.1;
             document.getElementById("target-ml").value = 1;
-            document.getElementById("total-ml").value = 10;
-        } else if (val === "neosynephrine_2") {
-            document.getElementById("stock-mg").value = 1; // 1Aの規格は1mg/1mlを想定。2A使う場合は計算式で工夫が必要ですが、ここでは原液濃度として入力
-            document.getElementById("stock-ml").value = 1;
-            document.getElementById("target-mg").value = 0.1;
-            document.getElementById("target-ml").value = 1;
-            document.getElementById("total-ml").value = 20; // 2mg+18ml = 20ml
-        } else if (val === "neosynephrine_5") {
-            document.getElementById("stock-mg").value = 1;
-            document.getElementById("stock-ml").value = 1;
-            document.getElementById("target-mg").value = 0.1;
-            document.getElementById("target-ml").value = 1;
-            document.getElementById("total-ml").value = 50; // 5mg+45ml = 50ml (シリンジに合わせて調整が必要かも)
+            document.getElementById("total-ml-a").value = 10;
+            document.getElementById("total-ml-b").value = 10;
+            document.getElementById("use-ampoule").value = 1;
+        }
+    }
+
+    // 課題3対応: 計算モードの表示切り替え
+    function toggleCalcMode() {
+        const mode = document.querySelector('input[name="calc-mode"]:checked').value;
+        if (mode === "target-conc") {
+            document.getElementById("mode-target-conc").style.display = "block";
+            document.getElementById("mode-ampoule").style.display = "none";
+        } else {
+            document.getElementById("mode-target-conc").style.display = "none";
+            document.getElementById("mode-ampoule").style.display = "block";
         }
     }
 
     function calculateDilution() {
         const stockMg = parseFloat(document.getElementById("stock-mg").value);
         const stockMl = parseFloat(document.getElementById("stock-ml").value);
-        const targetMg = parseFloat(document.getElementById("target-mg").value);
-        const targetMl = parseFloat(document.getElementById("target-ml").value);
-        const totalMl = parseFloat(document.getElementById("total-ml").value);
+        const mode = document.querySelector('input[name="calc-mode"]:checked').value;
 
-        if (!stockMg || !stockMl || !targetMg || !targetMl || !totalMl) {
-            alert("数値を正しく入力してください");
+        if (!stockMg || !stockMl) {
+            alert("原液の数値を正しく入力してください");
             return;
         }
 
         const stockConc = stockMg / stockMl;
-        const targetConc = targetMg / targetMl;
-        const requiredTotalMg = targetConc * totalMl;
-        const requiredStockMl = requiredTotalMg / stockConc;
-        const diluentMl = totalMl - requiredStockMl;
+        let requiredStockMl = 0;
+        let diluentMl = 0;
+        let totalMl = 0;
+        let finalConcStr = "";
 
+        if (mode === "target-conc") {
+            // モードA: 目標濃度から計算
+            const targetMg = parseFloat(document.getElementById("target-mg").value);
+            const targetMl = parseFloat(document.getElementById("target-ml").value);
+            totalMl = parseFloat(document.getElementById("total-ml-a").value);
+
+            if (!targetMg || !targetMl || !totalMl) {
+                alert("目標の数値を正しく入力してください");
+                return;
+            }
+
+            const targetConc = targetMg / targetMl;
+            const requiredTotalMg = targetConc * totalMl;
+            requiredStockMl = requiredTotalMg / stockConc;
+            diluentMl = totalMl - requiredStockMl;
+            
+            // 小数第2位までに丸める
+            requiredStockMl = Math.round(requiredStockMl * 100) / 100;
+            diluentMl = Math.round(diluentMl * 100) / 100;
+
+            finalConcStr = `${targetMg} mg / ${targetMl} ml`;
+
+            // ロジック表示の更新
+            document.getElementById("log-t-mg").textContent = targetMg;
+            document.getElementById("log-t-ml").textContent = targetMl;
+            document.getElementById("log-total").textContent = totalMl;
+            document.getElementById("log-req-mg").textContent = requiredTotalMg;
+            document.getElementById("log-s-mg").textContent = stockMg;
+            document.getElementById("log-s-ml").textContent = stockMl;
+            document.getElementById("log-req-mg2").textContent = requiredTotalMg;
+            document.getElementById("log-req-ml").textContent = requiredStockMl;
+            document.getElementById("log-total2").textContent = totalMl;
+            document.getElementById("log-diluent").textContent = diluentMl;
+
+            document.getElementById("logic-box-a").style.display = "block";
+            document.getElementById("logic-box-b").style.display = "none";
+
+        } else {
+            // モードB: アンプル数から計算
+            const useAmpoule = parseFloat(document.getElementById("use-ampoule").value);
+            totalMl = parseFloat(document.getElementById("total-ml-b").value);
+
+            if (!useAmpoule || !totalMl) {
+                alert("アンプル数と総量を正しく入力してください");
+                return;
+            }
+
+            requiredStockMl = stockMl * useAmpoule;
+            diluentMl = totalMl - requiredStockMl;
+            
+            if (diluentMl < 0) {
+                alert("総量が原液の量より少なくなっています。総量を増やしてください。");
+                return;
+            }
+            
+            // 小数第2位までに丸める
+            requiredStockMl = Math.round(requiredStockMl * 100) / 100;
+            diluentMl = Math.round(diluentMl * 100) / 100;
+
+            const finalTotalMg = stockMg * useAmpoule;
+            // 1mlあたりの濃度を計算
+            const finalConcPerMl = Math.round((finalTotalMg / totalMl) * 1000) / 1000;
+            finalConcStr = `${finalConcPerMl} mg / 1 ml`;
+
+            // ロジック表示の更新
+            document.getElementById("log-b-amp").textContent = useAmpoule;
+            document.getElementById("log-b-stock-ml").textContent = requiredStockMl;
+            document.getElementById("log-b-total").textContent = totalMl;
+            document.getElementById("log-b-diluent").textContent = diluentMl;
+            document.getElementById("log-b-final-conc").textContent = finalConcStr;
+
+            document.getElementById("logic-box-a").style.display = "none";
+            document.getElementById("logic-box-b").style.display = "block";
+        }
+
+        // 共通の結果描画
         document.getElementById("res-stock-ml").textContent = requiredStockMl;
         document.getElementById("res-diluent-ml").textContent = diluentMl;
         document.getElementById("res-total-ml").textContent = totalMl;
-
-        document.getElementById("log-t-mg").textContent = targetMg;
-        document.getElementById("log-t-ml").textContent = targetMl;
-        document.getElementById("log-total").textContent = totalMl;
-        document.getElementById("log-req-mg").textContent = requiredTotalMg;
-        document.getElementById("log-s-mg").textContent = stockMg;
-        document.getElementById("log-s-ml").textContent = stockMl;
-        document.getElementById("log-req-mg2").textContent = requiredTotalMg;
-        document.getElementById("log-req-ml").textContent = requiredStockMl;
-        document.getElementById("log-total2").textContent = totalMl;
-        document.getElementById("log-diluent").textContent = diluentMl;
+        document.getElementById("res-final-conc").textContent = finalConcStr;
 
         document.getElementById("calc-result").style.display = "block";
     }

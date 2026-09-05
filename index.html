@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>麻酔準備ナビ＆計算アシスト</title>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* --- ベーススタイル（Apple Health風） --- */
         body {
@@ -302,6 +304,90 @@
             border-radius: 12px;
             color: #3A3A3C;
         }
+
+        /* --- 管理ポイント (新規追加) --- */
+        .management-card {
+            background-color: #F2F2F7;
+            border-left: 5px solid #FF3B30;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .management-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1C1C1E;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+        .vital-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .vital-item {
+            background: #FFF;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .vital-label { font-size: 12px; color: #8E8E93; font-weight: 600; }
+        .vital-value { font-size: 15px; font-weight: 700; color: #007AFF; margin-top: 4px; }
+        .management-note {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #3A3A3C;
+            background: #FFF;
+            padding: 10px 12px;
+            border-radius: 8px;
+        }
+
+        /* --- メモエリア --- */
+        .memo-history {
+            margin-top: 20px;
+        }
+        .memo-item {
+            background-color: #FFF9C4; /* 付箋のような色 */
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .memo-time {
+            font-size: 12px;
+            color: #8E8E93;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .memo-text {
+            font-size: 15px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 1px solid #E5E5EA;
+            border-radius: 10px;
+            background-color: #FAFAFC;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+            transition: border-color 0.2s;
+            font-family: inherit;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #007AFF; 
+            background-color: #FFFFFF;
+        }
+        button.action-btn.memo { background-color: #FF9500; }
     </style>
 </head>
 <body>
@@ -312,6 +398,8 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('nav-tab')">準備ナビ</button>
         <button class="tab-btn" onclick="switchTab('calc-tab')">薬剤計算</button>
+        <!-- タブ追加 -->
+        <button class="tab-btn" onclick="switchTab('memo-tab')">術中メモ</button>
     </div>
 
     <!-- タブ1: 準備ナビ -->
@@ -328,6 +416,27 @@
 
         <div id="result-area" class="card" style="display: none;">
             <h2 id="result-title" style="font-size: 18px; border-bottom: 2px solid #F2F2F7; padding-bottom: 12px; margin-bottom: 10px;"></h2>
+            
+            <!-- 管理ポイント表示エリア -->
+            <div id="management-area" class="management-card" style="display: none;">
+                <div class="management-title">🎯 目標バイタル ＆ 管理ポイント</div>
+                <div class="vital-grid">
+                    <div class="vital-item">
+                        <div class="vital-label">血圧 (MAP)</div>
+                        <div id="vital-map" class="vital-value">-</div>
+                    </div>
+                    <div class="vital-item">
+                        <div class="vital-label">心拍数 (HR)</div>
+                        <div id="vital-hr" class="vital-value">-</div>
+                    </div>
+                    <div class="vital-item">
+                        <div class="vital-label">SpO2</div>
+                        <div id="vital-spo2" class="vital-value">-</div>
+                    </div>
+                </div>
+                <div class="management-note" id="vital-note"></div>
+            </div>
+
             <div id="result-list"></div>
         </div>
     </div>
@@ -349,7 +458,9 @@
             <select id="drug-preset" onchange="loadPreset()" style="margin-bottom: 0;">
                 <option value="">-- 手動入力 --</option>
                 <option value="ephedrine">エフェドリン (40mg/1ml)</option>
-                <option value="neosynephrine">ネオシネジン (1mg/1ml)</option>
+                <option value="neosynephrine_1">ネオシネジン 1mg＋9mL (0.1mg/1ml)</option>
+                <option value="neosynephrine_2">ネオシネジン 2mg＋18mL (0.1mg/1ml)</option>
+                <option value="neosynephrine_5">ネオシネジン 5mg＋49mL (0.1mg/1ml)</option>
             </select>
         </div>
         
@@ -401,6 +512,21 @@
             </div>
         </div>
     </div>
+
+    <!-- タブ3: 術中メモ (新機能) -->
+    <div id="memo-tab" class="tab-content">
+        <div class="card">
+            <h2>指示・気づきメモ</h2>
+            <p style="font-size: 14px; color: #8E8E93; margin-top: 0;">医師からの口頭指示や、術中の変化をタイムスタンプ付きで記録します。</p>
+            
+            <textarea id="memo-input" rows="3" placeholder="例：血圧90切ったらエフェドリン投与指示あり"></textarea>
+            <button class="action-btn memo" onclick="addMemo()">メモを保存する</button>
+            
+            <div id="memo-list" class="memo-history">
+                <!-- ここにメモが追加されていく -->
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -416,6 +542,12 @@
     const database = {
         "kuwana_zenshin": {
             title: "桑名Dr / 泌尿器：膀胱癌 (全身麻酔)",
+            managementPoint: {
+                map: "60mmHg以上維持",
+                hr: "50〜90回/分",
+                spo2: "95%以上",
+                note: "⚠️ 高齢患者のため、導入時の急激な血圧低下に注意。NIBP mean 60を下回ったら躊躇せずエフェドリン使用を考慮。"
+            },
             items: [
                 { category: "鎮静薬", name: "プロポフォール", spec: "20ml (20ccロック+18G)", kinko: false, imgUrl: "images/propofol.jpg.jpg", why: "寝かせるため。起きている状態で筋弛緩すると金縛りにあった様になってしまうため注意。" },
                 { category: "筋弛緩薬", name: "ロクロニウム", spec: "50mg/5.0ml (5ccロック+18G)", kinko: true, imgUrl: "images/ロクロニウム.jpg", why: "自発呼吸も完全に止まるため人工呼吸器管理が必要。効果が出るのが遅い。" },
@@ -426,6 +558,12 @@
         },
         "kuwana_sekima": {
             title: "桑名Dr / 整形：左大腿転子部骨折 (脊椎麻酔)",
+            managementPoint: {
+                map: "術前ベース±20%以内",
+                hr: "50〜100回/分",
+                spo2: "95%以上",
+                note: "💡 脊麻による血管拡張で血圧低下が起きやすい。フィジオの負荷投与とエフェドリン準備を優先。"
+            },
             items: [
                 { category: "麻酔針", name: "25G ペンシル針", spec: "L3/4 para", kinko: false, imgUrl: null, why: "ペンシル型は硬膜の繊維を「押し広げて」進むため、硬膜穿刺後頭痛（PDPH）が発生しにくい。" },
                 { category: "輸液", name: "フィジオ（酢酸リンゲル液）", spec: "500ml", kinko: false, imgUrl: null, why: "末梢組織でも素早く代謝されてアルカリに変わる「酢酸」を含み、安全に酸塩基平衡を補正できる。" },
@@ -446,6 +584,17 @@
 
         const data = database[selectedValue];
         document.getElementById("result-title").textContent = data.title;
+
+        // 管理ポイントの描画
+        if (data.managementPoint) {
+            document.getElementById("vital-map").textContent = data.managementPoint.map;
+            document.getElementById("vital-hr").textContent = data.managementPoint.hr;
+            document.getElementById("vital-spo2").textContent = data.managementPoint.spo2;
+            document.getElementById("vital-note").innerHTML = data.managementPoint.note;
+            document.getElementById("management-area").style.display = "block";
+        } else {
+            document.getElementById("management-area").style.display = "none";
+        }
 
         data.items.forEach((item, index) => {
             const kinkoMark = item.kinko ? '<span class="item-badge">金庫管理</span>' : '';
@@ -492,6 +641,36 @@
         document.getElementById("modal-drug-img").src = ""; // 閉じた時に画像をリセット
     }
 
+    // --- メモ機能のロジック ---
+    function addMemo() {
+        const memoInput = document.getElementById("memo-input");
+        const text = memoInput.value.trim();
+        
+        if (!text) {
+            alert("メモを入力してください");
+            return;
+        }
+
+        // 現在時刻の取得
+        const now = new Date();
+        const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+        // メモ要素の作成
+        const memoList = document.getElementById("memo-list");
+        const memoDiv = document.createElement("div");
+        memoDiv.className = "memo-item";
+        memoDiv.innerHTML = `
+            <div class="memo-time"><i class="fa-regular fa-clock"></i> ${timeString}</div>
+            <div class="memo-text">${text}</div>
+        `;
+
+        // 一番上に追加
+        memoList.prepend(memoDiv);
+        
+        // 入力欄をクリア
+        memoInput.value = "";
+    }
+
     /* --- 計算機制御関数 --- */
     function loadPreset() {
         const val = document.getElementById("drug-preset").value;
@@ -501,12 +680,24 @@
             document.getElementById("target-mg").value = 4;
             document.getElementById("target-ml").value = 1;
             document.getElementById("total-ml").value = 10;
-        } else if (val === "neosynephrine") {
+        } else if (val === "neosynephrine_1") {
             document.getElementById("stock-mg").value = 1;
             document.getElementById("stock-ml").value = 1;
             document.getElementById("target-mg").value = 0.1;
             document.getElementById("target-ml").value = 1;
             document.getElementById("total-ml").value = 10;
+        } else if (val === "neosynephrine_2") {
+            document.getElementById("stock-mg").value = 1; // 1Aの規格は1mg/1mlを想定。2A使う場合は計算式で工夫が必要ですが、ここでは原液濃度として入力
+            document.getElementById("stock-ml").value = 1;
+            document.getElementById("target-mg").value = 0.1;
+            document.getElementById("target-ml").value = 1;
+            document.getElementById("total-ml").value = 20; // 2mg+18ml = 20ml
+        } else if (val === "neosynephrine_5") {
+            document.getElementById("stock-mg").value = 1;
+            document.getElementById("stock-ml").value = 1;
+            document.getElementById("target-mg").value = 0.1;
+            document.getElementById("target-ml").value = 1;
+            document.getElementById("total-ml").value = 50; // 5mg+45ml = 50ml (シリンジに合わせて調整が必要かも)
         }
     }
 

@@ -6,6 +6,7 @@
     <title>麻酔準備ナビ＆計算アシスト</title>
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
         /* --- ベーススタイル（Apple Health風） --- */
         body {
@@ -284,7 +285,7 @@
             padding-bottom: 0;
         }
         
-        /* 追加: 計算モード切り替え用 */
+        /* 課題3対応: 計算モード切り替え用 */
         .calc-mode-selector {
             display: flex;
             gap: 16px;
@@ -329,7 +330,7 @@
             color: #3A3A3C;
         }
 
-        /* --- 管理ポイント (新規追加) --- */
+        /* --- 管理ポイント (課題1対応) --- */
         .management-card {
             background-color: #F2F2F7;
             border-left: 5px solid #FF3B30;
@@ -422,7 +423,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('nav-tab')">準備ナビ</button>
         <button class="tab-btn" onclick="switchTab('calc-tab')">薬剤計算</button>
-        <!-- タブ追加 -->
+        <!-- メモ機能タブ追加 -->
         <button class="tab-btn" onclick="switchTab('memo-tab')">術中メモ</button>
     </div>
 
@@ -441,7 +442,7 @@
         <div id="result-area" class="card" style="display: none;">
             <h2 id="result-title" style="font-size: 18px; border-bottom: 2px solid #F2F2F7; padding-bottom: 12px; margin-bottom: 10px;"></h2>
             
-            <!-- 管理ポイント表示エリア -->
+            <!-- 管理ポイント表示エリア (課題1対応) -->
             <div id="management-area" class="management-card" style="display: none;">
                 <div class="management-title">🎯 目標バイタル ＆ 管理ポイント</div>
                 <div class="vital-grid">
@@ -469,7 +470,6 @@
     <div id="image-modal" class="modal-overlay" onclick="closeModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-title" id="modal-drug-name">薬剤名</div>
-            <!-- 画像のプレースホルダー -->
             <img id="modal-drug-img" src="" alt="薬剤の画像" class="modal-image">
             <button class="modal-close" onclick="closeModal()">閉じる</button>
         </div>
@@ -502,10 +502,10 @@
             <div class="input-group">
                 <label>原液情報</label>
                 <div class="input-row">
-                    <!-- 課題9対応: step="any" を追加 -->
+                    <!-- 課題9対応: step="any" 課題4対応: inputmode="decimal" (テンキー表示) -->
                     <strong>濃度</strong>
-                    <input type="number" id="stock-mg" value="40" step="any"> <span style="margin-right: 12px;">mg</span> / 
-                    <input type="number" id="stock-ml" value="1" step="any" style="margin-left: 12px;"> <span>ml</span>
+                    <input type="number" id="stock-mg" value="40" step="any" inputmode="decimal"> <span style="margin-right: 12px;">mg</span> / 
+                    <input type="number" id="stock-ml" value="1" step="any" inputmode="decimal" style="margin-left: 12px;"> <span>ml</span>
                 </div>
             </div>
             
@@ -513,14 +513,14 @@
             <div class="input-group" id="mode-target-conc">
                 <label>作成したい目標</label>
                 <div class="input-row">
-                    <!-- 課題9対応: step="any" を追加 -->
+                    <!-- 課題9対応: step="any" 課題4対応: inputmode="decimal" (テンキー表示) -->
                     <strong>濃度</strong>
-                    <input type="number" id="target-mg" value="4" step="any"> <span style="margin-right: 12px;">mg</span> / 
-                    <input type="number" id="target-ml" value="1" step="any" style="margin-left: 12px;"> <span>ml</span>
+                    <input type="number" id="target-mg" value="4" step="any" inputmode="decimal"> <span style="margin-right: 12px;">mg</span> / 
+                    <input type="number" id="target-ml" value="1" step="any" inputmode="decimal" style="margin-left: 12px;"> <span>ml</span>
                 </div>
                 <div class="input-row">
                     <strong>総量</strong>
-                    <input type="number" id="total-ml-a" value="10" step="any"> <span>ml</span>
+                    <input type="number" id="total-ml-a" value="10" step="any" inputmode="decimal"> <span>ml</span>
                 </div>
             </div>
 
@@ -528,12 +528,13 @@
             <div class="input-group" id="mode-ampoule" style="display: none;">
                 <label>使用量と作成総量</label>
                 <div class="input-row">
+                    <!-- 課題9対応: step="any" 課題4対応: inputmode="decimal" (テンキー表示) -->
                     <strong>使用量</strong>
-                    <input type="number" id="use-ampoule" value="1" step="any"> <span>アンプル (または本)</span>
+                    <input type="number" id="use-ampoule" value="1" step="any" inputmode="decimal"> <span>アンプル (または本)</span>
                 </div>
                 <div class="input-row">
                     <strong>総量</strong>
-                    <input type="number" id="total-ml-b" value="10" step="any"> <span>ml</span>
+                    <input type="number" id="total-ml-b" value="10" step="any" inputmode="decimal"> <span>ml</span>
                 </div>
             </div>
             
@@ -577,7 +578,7 @@
         </div>
     </div>
 
-    <!-- タブ3: 術中メモ (新機能) -->
+    <!-- タブ3: 術中メモ -->
     <div id="memo-tab" class="tab-content">
         <div class="card">
             <h2>指示・気づきメモ</h2>
@@ -601,8 +602,7 @@
         event.currentTarget.classList.add('active');
     }
 
-    // データベースに `imgUrl` を追加
-    // 実際にご自身の環境で使う際は、アンプルの写真のURLやローカルの画像パス（例: "images/propofol.jpg"）に書き換えてください。
+    // データベース定義 (課題1: managementPointを追加)
     const database = {
         "kuwana_zenshin": {
             title: "桑名Dr / 泌尿器：膀胱癌 (全身麻酔)",
@@ -613,10 +613,10 @@
                 note: "⚠️ 高齢患者のため、導入時の急激な血圧低下に注意。NIBP mean 60を下回ったら躊躇せずエフェドリン使用を考慮。"
             },
             items: [
-                { category: "鎮静薬", name: "プロポフォール", spec: "20ml (20ccロック+18G)", kinko: false, imgUrl: "images/propofol.jpg.jpg", why: "寝かせるため。起きている状態で筋弛緩すると金縛りにあった様になってしまうため注意。" },
-                { category: "筋弛緩薬", name: "ロクロニウム", spec: "50mg/5.0ml (5ccロック+18G)", kinko: true, imgUrl: "images/ロクロニウム.jpg", why: "自発呼吸も完全に止まるため人工呼吸器管理が必要。効果が出るのが遅い。" },
+                { category: "鎮静薬", name: "プロポフォール", spec: "20ml (20ccロック+18G)", kinko: false, imgUrl: "images/propofol.jpg", why: "寝かせるため。起きている状態で筋弛緩すると金縛りにあった様になってしまうため注意。" },
+                { category: "筋弛緩薬", name: "ロクロニウム", spec: "50mg/5.0ml (5ccロック+18G)", kinko: true, imgUrl: "images/rocuronium.jpg", why: "自発呼吸も完全に止まるため人工呼吸器管理が必要。効果が出るのが遅い。" },
                 { category: "鎮痛薬", name: "レミフェンタニル", spec: "2mg/20ml (20ccロック＋18G)", kinko: true, imgUrl: "images/remifentanil.jpg", why: "シリンジポンプで持続投与するため、赤くて細いエクステンションをつける。" },
-                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "images/エフェドリン.jpg", why: "生食で希釈し4mg/1mlにする。NIBPのmean60を下回ったら使用。" },
+                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "images/ephedrine.jpg", why: "生食で希釈し4mg/1mlにする。NIBPのmean60を下回ったら使用。" },
                 { category: "気道確保", name: "アイゲル(LMA)", spec: "サイズ：#4", kinko: false, imgUrl: null, why: "男性は4、女性は3が目安。" }
             ]
         },
@@ -631,7 +631,7 @@
             items: [
                 { category: "麻酔針", name: "25G ペンシル針", spec: "L3/4 para", kinko: false, imgUrl: null, why: "ペンシル型は硬膜の繊維を「押し広げて」進むため、硬膜穿刺後頭痛（PDPH）が発生しにくい。" },
                 { category: "輸液", name: "フィジオ（酢酸リンゲル液）", spec: "500ml", kinko: false, imgUrl: null, why: "末梢組織でも素早く代謝されてアルカリに変わる「酢酸」を含み、安全に酸塩基平衡を補正できる。" },
-                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "images/エフェドリン.jpg", why: "生食で希釈し4mg/1mlにする。脊麻による血圧低下時に使用。" }
+                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "images/ephedrine.jpg", why: "生食で希釈し4mg/1mlにする。脊麻による血圧低下時に使用。" }
             ]
         }
     };
@@ -649,7 +649,7 @@
         const data = database[selectedValue];
         document.getElementById("result-title").textContent = data.title;
 
-        // 管理ポイントの描画
+        // 管理ポイントの描画 (課題1)
         if (data.managementPoint) {
             document.getElementById("vital-map").textContent = data.managementPoint.map;
             document.getElementById("vital-hr").textContent = data.managementPoint.hr;
@@ -665,7 +665,7 @@
             const whyId = `why-${index}`;
             const whyHtml = item.why ? `<button class="why-btn" onclick="toggleWhy('${whyId}')">ℹ️ 理由・ポイント</button><div id="${whyId}" class="why-text">${item.why}</div>` : '';
             
-            // 画像ボタンの生成 (imgUrlが登録されている場合のみ表示)
+            // 画像ボタンの生成
             const imgBtnHtml = item.imgUrl ? `<button class="img-btn" onclick="openModal('${item.name}', '${item.imgUrl}')">📸 画像</button>` : '';
 
             const itemDiv = document.createElement("div");
@@ -700,9 +700,8 @@
     }
 
     function closeModal(event) {
-        // 背景クリック時または閉じるボタンクリック時に閉じる
         document.getElementById("image-modal").style.display = "none";
-        document.getElementById("modal-drug-img").src = ""; // 閉じた時に画像をリセット
+        document.getElementById("modal-drug-img").src = ""; 
     }
 
     // --- メモ機能のロジック ---
@@ -715,11 +714,9 @@
             return;
         }
 
-        // 現在時刻の取得
         const now = new Date();
         const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
-        // メモ要素の作成
         const memoList = document.getElementById("memo-list");
         const memoDiv = document.createElement("div");
         memoDiv.className = "memo-item";
@@ -728,10 +725,7 @@
             <div class="memo-text">${text}</div>
         `;
 
-        // 一番上に追加
         memoList.prepend(memoDiv);
-        
-        // 入力欄をクリア
         memoInput.value = "";
     }
 
@@ -774,7 +768,7 @@
         const stockMl = parseFloat(document.getElementById("stock-ml").value);
         const mode = document.querySelector('input[name="calc-mode"]:checked').value;
 
-        if (!stockMg || !stockMl) {
+        if (isNaN(stockMg) || isNaN(stockMl)) {
             alert("原液の数値を正しく入力してください");
             return;
         }
@@ -791,7 +785,7 @@
             const targetMl = parseFloat(document.getElementById("target-ml").value);
             totalMl = parseFloat(document.getElementById("total-ml-a").value);
 
-            if (!targetMg || !targetMl || !totalMl) {
+            if (isNaN(targetMg) || isNaN(targetMl) || isNaN(totalMl)) {
                 alert("目標の数値を正しく入力してください");
                 return;
             }
@@ -827,18 +821,13 @@
             const useAmpoule = parseFloat(document.getElementById("use-ampoule").value);
             totalMl = parseFloat(document.getElementById("total-ml-b").value);
 
-            if (!useAmpoule || !totalMl) {
+            if (isNaN(useAmpoule) || isNaN(totalMl)) {
                 alert("アンプル数と総量を正しく入力してください");
                 return;
             }
 
             requiredStockMl = stockMl * useAmpoule;
             diluentMl = totalMl - requiredStockMl;
-            
-            if (diluentMl < 0) {
-                alert("総量が原液の量より少なくなっています。総量を増やしてください。");
-                return;
-            }
             
             // 小数第2位までに丸める
             requiredStockMl = Math.round(requiredStockMl * 100) / 100;

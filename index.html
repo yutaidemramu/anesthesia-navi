@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
+        /* --- ベーススタイル（Apple Health風） --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif;
             margin: 0;
@@ -32,6 +33,7 @@
             margin-top: 0;
         }
 
+        /* --- iOS風 タブ --- */
         .tabs {
             display: flex;
             background-color: #E3E3E8;
@@ -68,6 +70,7 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* --- Card UI 共通設定 --- */
         .card {
             background-color: #FFFFFF;
             border-radius: 16px;
@@ -75,6 +78,8 @@
             margin-bottom: 16px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.03);
         }
+
+        /* --- フォーム・ボタン --- */
         label {
             display: block;
             font-size: 14px;
@@ -125,6 +130,7 @@
             background-color: #34C759; 
         }
 
+        /* --- リスト型UI (タブ1) --- */
         .list-item {
             display: flex;
             flex-direction: column;
@@ -212,6 +218,7 @@
             line-height: 1.5;
         }
 
+        /* --- 画像モーダル（ポップアップ） --- */
         .modal-overlay {
             display: none; 
             position: fixed;
@@ -259,6 +266,7 @@
             width: 100%;
         }
 
+        /* --- 計算エリア (タブ2) --- */
         .input-row {
             display: flex;
             align-items: center;
@@ -412,7 +420,6 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('nav-tab')">準備ナビ</button>
         <button class="tab-btn" onclick="switchTab('calc-tab')">薬剤計算</button>
-        <!-- メモ機能タブ -->
         <button class="tab-btn" onclick="switchTab('memo-tab')">術中メモ</button>
     </div>
 
@@ -431,7 +438,6 @@
         <div id="result-area" class="card" style="display: none;">
             <h2 id="result-title" style="font-size: 18px; border-bottom: 2px solid #F2F2F7; padding-bottom: 12px; margin-bottom: 10px;"></h2>
             
-            <!-- 管理ポイント表示エリア (課題1対応) -->
             <div id="management-area" class="management-card" style="display: none;">
                 <div class="management-title">🎯 目標バイタル ＆ 管理ポイント</div>
                 <div class="vital-grid">
@@ -467,22 +473,21 @@
     <div id="calc-tab" class="tab-content">
         <div class="card">
             <label>よく使う薬剤のプリセット</label>
-            <!-- 課題2対応: パターン選択の拡充 -->
             <select id="drug-preset" onchange="loadPreset()" style="margin-bottom: 0;">
                 <option value="">-- 手動入力 --</option>
                 <optgroup label="エフェドリン (原液 40mg/1ml)">
-                    <option value="ephedrine_40_10">40mg + 生食9mL (総量10mL)</option>
+                    <option value="ephedrine_40_10">40mg + 生食9mL (総量10mL) 【1mLあたり 4mg】</option>
                 </optgroup>
                 <optgroup label="ネオシネジン (原液 1mg/1ml)">
-                    <option value="neosynephrine_1_10">1mg + 生食9mL (総量10mL)</option>
-                    <option value="neosynephrine_2_20">2mg + 生食18mL (総量20mL)</option>
-                    <option value="neosynephrine_5_50">5mg + 生食49mL (総量50mL)</option>
+                    <option value="neosynephrine_1_10">1mg + 生食9mL (総量10mL) 【1mLあたり 0.1mg (100μg)】</option>
+                    <option value="neosynephrine_1_20">1mg + 生食19mL (総量20mL) 【1mLあたり 0.05mg (50μg)】</option>
+                    <option value="neosynephrine_2_20">2mg + 生食18mL (総量20mL) 【1mLあたり 0.1mg (100μg)】</option>
+                    <option value="neosynephrine_5_50">5mg + 生食49mL (総量50mL) 【1mLあたり 0.1mg (100μg)】</option>
                 </optgroup>
             </select>
         </div>
         
         <div class="card">
-            <!-- 課題3対応: 計算モードの切り替え -->
             <div class="calc-mode-selector">
                 <label>
                     <input type="radio" name="calc-mode" value="target-conc" checked onchange="toggleCalcMode()">
@@ -497,14 +502,12 @@
             <div class="input-group">
                 <label>原液情報</label>
                 <div class="input-row">
-                    <!-- 課題9対応: step="any" 課題4対応: inputmode="decimal" (テンキー表示) -->
                     <strong>濃度</strong>
                     <input type="number" id="stock-mg" value="40" step="any" inputmode="decimal"> <span style="margin-right: 12px;">mg</span> / 
                     <input type="number" id="stock-ml" value="1" step="any" inputmode="decimal" style="margin-left: 12px;"> <span>ml</span>
                 </div>
             </div>
             
-            <!-- モードA: 目標濃度から計算するエリア -->
             <div class="input-group" id="mode-target-conc">
                 <label>作成したい目標</label>
                 <div class="input-row">
@@ -518,7 +521,6 @@
                 </div>
             </div>
 
-            <!-- モードB: アンプル数から計算するエリア (初期は非表示) -->
             <div class="input-group" id="mode-ampoule" style="display: none;">
                 <label>使用量と作成総量</label>
                 <div class="input-row">
@@ -549,7 +551,6 @@
                 <div><span id="res-total-ml" class="step-value finish"></span><span class="step-unit">ml</span></div>
             </div>
             
-            <!-- 完成時の濃度表示 (モードBの時に重要) -->
             <div class="step-box" style="background-color: #F2F2F7; border-bottom: none; margin-top: 10px; border-radius: 8px;">
                 <div class="step-label">完成濃度</div>
                 <div><span id="res-final-conc" class="step-value" style="color: #1C1C1E; font-size: 20px;"></span></div>
@@ -595,8 +596,6 @@
         event.currentTarget.classList.add('active');
     }
 
-    // データベース定義
-    // GitHubのリポジトリ構成に合わせて画像パスを修正
     const database = {
         "kuwana_zenshin": {
             title: "桑名Dr / 泌尿器：膀胱癌 (全身麻酔)",
@@ -643,7 +642,6 @@
         const data = database[selectedValue];
         document.getElementById("result-title").textContent = data.title;
 
-        // 管理ポイントの描画 (課題1)
         if (data.managementPoint) {
             document.getElementById("vital-map").textContent = data.managementPoint.map;
             document.getElementById("vital-hr").textContent = data.managementPoint.hr;
@@ -659,7 +657,6 @@
             const whyId = `why-${index}`;
             const whyHtml = item.why ? `<button class="why-btn" onclick="toggleWhy('${whyId}')">ℹ️ 理由・ポイント</button><div id="${whyId}" class="why-text">${item.why}</div>` : '';
             
-            // 画像ボタンの生成
             const imgBtnHtml = item.imgUrl ? `<button class="img-btn" onclick="openModal('${item.name}', '${item.imgUrl}')">📸 画像</button>` : '';
 
             const itemDiv = document.createElement("div");
@@ -697,7 +694,6 @@
         document.getElementById("modal-drug-img").src = ""; 
     }
 
-    // --- メモ機能のロジック ---
     function addMemo() {
         const memoInput = document.getElementById("memo-input");
         const text = memoInput.value.trim();
@@ -722,42 +718,43 @@
         memoInput.value = "";
     }
 
-    // 課題2対応: プリセット選択時の自動セット＆計算実行
     function loadPreset() {
         const val = document.getElementById("drug-preset").value;
         if (!val) return;
 
-        // パターン選択時は直感的な「アンプル数から計算」モードに自動で切り替え
         document.querySelector('input[name="calc-mode"][value="ampoule"]').checked = true;
         toggleCalcMode(); 
 
         if (val === "ephedrine_40_10") {
             document.getElementById("stock-mg").value = 40;
             document.getElementById("stock-ml").value = 1;
-            document.getElementById("use-ampoule").value = 1; // 40mg = 1A
+            document.getElementById("use-ampoule").value = 1; 
             document.getElementById("total-ml-b").value = 10;
         } else if (val === "neosynephrine_1_10") {
             document.getElementById("stock-mg").value = 1;
             document.getElementById("stock-ml").value = 1;
-            document.getElementById("use-ampoule").value = 1; // 1mg = 1A
+            document.getElementById("use-ampoule").value = 1; 
             document.getElementById("total-ml-b").value = 10;
+        } else if (val === "neosynephrine_1_20") {
+            document.getElementById("stock-mg").value = 1;
+            document.getElementById("stock-ml").value = 1;
+            document.getElementById("use-ampoule").value = 1; 
+            document.getElementById("total-ml-b").value = 20;
         } else if (val === "neosynephrine_2_20") {
             document.getElementById("stock-mg").value = 1;
             document.getElementById("stock-ml").value = 1;
-            document.getElementById("use-ampoule").value = 2; // 2mg = 2A
+            document.getElementById("use-ampoule").value = 2; 
             document.getElementById("total-ml-b").value = 20;
         } else if (val === "neosynephrine_5_50") {
             document.getElementById("stock-mg").value = 1;
             document.getElementById("stock-ml").value = 1;
-            document.getElementById("use-ampoule").value = 5; // 5mg = 5A
+            document.getElementById("use-ampoule").value = 5; 
             document.getElementById("total-ml-b").value = 50;
         }
 
-        // 値をセットしたら自動的に計算を実行
         calculateDilution();
     }
 
-    // 課題3対応: 計算モードの表示切り替え
     function toggleCalcMode() {
         const mode = document.querySelector('input[name="calc-mode"]:checked').value;
         if (mode === "target-conc") {
@@ -786,7 +783,6 @@
         let finalConcStr = "";
 
         if (mode === "target-conc") {
-            // モードA: 目標濃度から計算
             const targetMg = parseFloat(document.getElementById("target-mg").value);
             const targetMl = parseFloat(document.getElementById("target-ml").value);
             totalMl = parseFloat(document.getElementById("total-ml-a").value);
@@ -796,18 +792,23 @@
                 return;
             }
 
-            const targetConc = targetMg / targetMl;
+            const targetConc = targetMg / targetMl; // これが1mlあたりの濃度
             const requiredTotalMg = targetConc * totalMl;
             requiredStockMl = requiredTotalMg / stockConc;
             diluentMl = totalMl - requiredStockMl;
             
-            // 小数第2位までに丸める
             requiredStockMl = Math.round(requiredStockMl * 100) / 100;
             diluentMl = Math.round(diluentMl * 100) / 100;
 
-            finalConcStr = `${targetMg} mg / ${targetMl} ml`;
+            // 1mlあたりの濃度を計算してμg表記を追加
+            const roundedConcA = Math.round(targetConc * 1000) / 1000;
+            let concDisplayA = `${roundedConcA} mg`;
+            if (roundedConcA < 1 && roundedConcA > 0) {
+                const microGramA = Math.round(roundedConcA * 1000);
+                concDisplayA += ` (${microGramA} μg)`;
+            }
+            finalConcStr = `${concDisplayA} / 1 ml`;
 
-            // ロジック表示の更新
             document.getElementById("log-t-mg").textContent = targetMg;
             document.getElementById("log-t-ml").textContent = targetMl;
             document.getElementById("log-total").textContent = totalMl;
@@ -823,7 +824,6 @@
             document.getElementById("logic-box-b").style.display = "none";
 
         } else {
-            // モードB: アンプル数から計算
             const useAmpoule = parseFloat(document.getElementById("use-ampoule").value);
             totalMl = parseFloat(document.getElementById("total-ml-b").value);
 
@@ -835,16 +835,20 @@
             requiredStockMl = stockMl * useAmpoule;
             diluentMl = totalMl - requiredStockMl;
             
-            // 小数第2位までに丸める
             requiredStockMl = Math.round(requiredStockMl * 100) / 100;
             diluentMl = Math.round(diluentMl * 100) / 100;
 
             const finalTotalMg = stockMg * useAmpoule;
-            // 1mlあたりの濃度を計算
-            const finalConcPerMl = Math.round((finalTotalMg / totalMl) * 1000) / 1000;
-            finalConcStr = `${finalConcPerMl} mg / 1 ml`;
+            // 1mlあたりの濃度を計算してμg表記を追加
+            const finalConcPerMl = finalTotalMg / totalMl;
+            const roundedConcB = Math.round(finalConcPerMl * 1000) / 1000;
+            let concDisplayB = `${roundedConcB} mg`;
+            if (roundedConcB < 1 && roundedConcB > 0) {
+                const microGramB = Math.round(roundedConcB * 1000);
+                concDisplayB += ` (${microGramB} μg)`;
+            }
+            finalConcStr = `${concDisplayB} / 1 ml`;
 
-            // ロジック表示の更新
             document.getElementById("log-b-amp").textContent = useAmpoule;
             document.getElementById("log-b-stock-ml").textContent = requiredStockMl;
             document.getElementById("log-b-total").textContent = totalMl;
@@ -855,7 +859,6 @@
             document.getElementById("logic-box-b").style.display = "block";
         }
 
-        // 共通の結果描画
         document.getElementById("res-stock-ml").textContent = requiredStockMl;
         document.getElementById("res-diluent-ml").textContent = diluentMl;
         document.getElementById("res-total-ml").textContent = totalMl;

@@ -103,7 +103,7 @@
             border-color: #007AFF; 
             background-color: #FFFFFF;
         }
-        input[type="number"] {
+        input[type="number"], input[type="text"].small-input {
             width: 80px;
             display: inline-block;
             margin-bottom: 0;
@@ -368,6 +368,7 @@
             border-radius: 8px;
         }
 
+        /* --- 術中メモ用 --- */
         .memo-history {
             margin-top: 20px;
         }
@@ -410,6 +411,77 @@
             background-color: #FFFFFF;
         }
         button.action-btn.memo { background-color: #FF9500; }
+
+        /* メモテンプレートボタン */
+        .template-btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .template-btn {
+            background-color: #E5E5EA;
+            color: #1C1C1E;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .template-btn:hover { background-color: #D1D1D6; }
+
+        /* テンプレート入力フォーム */
+        .template-form {
+            background-color: #F2F2F7;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: none; /* 初期は非表示 */
+        }
+        .template-form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+            flex-wrap: wrap;
+        }
+        .template-form-row label {
+            width: 100%; /* モバイル向けに100%に */
+            margin-bottom: 4px;
+            color: #1C1C1E;
+            font-weight: 600;
+        }
+        .template-form-row .input-container {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            width: 100%;
+        }
+        .template-form-row input[type="text"], 
+        .template-form-row input[type="number"], 
+        .template-form-row select {
+            margin-bottom: 0;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+        .template-form-row .range-separator { margin: 0 4px; }
+        
+        button.insert-template-btn {
+            background-color: #10B981;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 10px;
+            margin-top: 10px;
+            width: auto;
+        }
+
     </style>
 </head>
 <body>
@@ -578,7 +650,83 @@
             <h2>指示・気づきメモ</h2>
             <p style="font-size: 14px; color: #8E8E93; margin-top: 0;">医師からの口頭指示や、術中の変化をタイムスタンプ付きで記録します。</p>
             
-            <textarea id="memo-input" rows="3" placeholder="例：血圧90切ったらエフェドリン投与指示あり"></textarea>
+            <div class="template-btn-group">
+                <button class="template-btn" onclick="toggleTemplateForm('anesthesia-instruction')"><i class="fa-solid fa-file-medical"></i> 麻酔支援CE指示入力</button>
+            </div>
+
+            <!-- 麻酔支援CE指示 テンプレートフォーム -->
+            <div id="template-anesthesia-instruction" class="template-form">
+                <div class="template-form-row">
+                    <label>麻酔科医</label>
+                    <div class="input-container">
+                        <select id="tpl-doctor" style="width: 150px; margin-bottom: 0;">
+                            <option value="桑名">桑名</option>
+                            <option value="澤井">澤井</option>
+                            <option value="長岡">長岡</option>
+                            <option value="その他">その他</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="template-form-row">
+                    <label>SBP 目標</label>
+                    <div class="input-container">
+                        <input type="number" id="tpl-sbp-min" value="80" class="small-input" inputmode="decimal">
+                        <span class="range-separator">～</span>
+                        <input type="number" id="tpl-sbp-max" value="150" class="small-input" inputmode="decimal">
+                        <span>mmHg でコントロール</span>
+                    </div>
+                </div>
+                <div class="template-form-row">
+                    <label>昇圧指示</label>
+                    <div class="input-container">
+                        <span>SBP</span>
+                        <input type="number" id="tpl-drop-sbp" value="80" class="small-input" inputmode="decimal">
+                        <span>mmHg 以下で</span>
+                        <select id="tpl-drug" style="width: 140px; margin-bottom: 0;">
+                            <option value="ネオシネジン">ネオシネジン</option>
+                            <option value="エフェドリン">エフェドリン</option>
+                        </select>
+                        <input type="number" id="tpl-drug-dose" value="50" class="small-input" inputmode="decimal">
+                        <select id="tpl-drug-unit" style="width: 80px; margin-bottom: 0;">
+                            <option value="μg">μg</option>
+                            <option value="mg">mg</option>
+                        </select>
+                        <input type="number" id="tpl-drug-vol" value="1" class="small-input" inputmode="decimal">
+                        <span>ml フラッシュ</span>
+                    </div>
+                </div>
+                <div class="template-form-row">
+                    <label>EtCO2</label>
+                    <div class="input-container">
+                        <input type="number" id="tpl-etco2-min" value="30" class="small-input" inputmode="decimal">
+                        <span class="range-separator">～</span>
+                        <input type="number" id="tpl-etco2-max" value="35" class="small-input" inputmode="decimal">
+                        <span>mmHg /</span>
+                        <input type="number" id="tpl-rr-min" value="8" class="small-input" inputmode="decimal">
+                        <span class="range-separator">～</span>
+                        <input type="number" id="tpl-rr-max" value="15" class="small-input" inputmode="decimal">
+                        <span>回 でコントロール</span>
+                    </div>
+                </div>
+                <div class="template-form-row">
+                    <label>アラート</label>
+                    <div class="input-container">
+                        <span>HR</span>
+                        <input type="number" id="tpl-hr-alert" value="40" class="small-input" inputmode="decimal">
+                        <span>回以下 Drコール</span>
+                    </div>
+                </div>
+                <div class="template-form-row">
+                    <label>体温アラート</label>
+                    <div class="input-container">
+                        <input type="number" id="tpl-temp-alert" value="38" step="0.1" class="small-input" inputmode="decimal">
+                        <span>℃ 以下</span>
+                    </div>
+                </div>
+                <button class="insert-template-btn" onclick="insertAnesthesiaTemplate()">テキストエリアに挿入</button>
+            </div>
+            
+            <textarea id="memo-input" rows="5" placeholder="例：血圧90切ったらエフェドリン投与指示あり"></textarea>
             <button class="action-btn memo" onclick="addMemo()">メモを保存する</button>
             
             <div id="memo-list" class="memo-history">
@@ -716,6 +864,45 @@
 
         memoList.prepend(memoDiv);
         memoInput.value = "";
+    }
+
+    function toggleTemplateForm(formId) {
+        const form = document.getElementById('template-' + formId);
+        form.style.display = (form.style.display === 'none' || form.style.display === '') ? 'block' : 'none';
+    }
+
+    function insertAnesthesiaTemplate() {
+        const doctor = document.getElementById('tpl-doctor').value;
+        const sbpMin = document.getElementById('tpl-sbp-min').value;
+        const sbpMax = document.getElementById('tpl-sbp-max').value;
+        const dropSbp = document.getElementById('tpl-drop-sbp').value;
+        const drug = document.getElementById('tpl-drug').value;
+        const drugDose = document.getElementById('tpl-drug-dose').value;
+        const drugUnit = document.getElementById('tpl-drug-unit').value;
+        const drugVol = document.getElementById('tpl-drug-vol').value;
+        const etco2Min = document.getElementById('tpl-etco2-min').value;
+        const etco2Max = document.getElementById('tpl-etco2-max').value;
+        const rrMin = document.getElementById('tpl-rr-min').value;
+        const rrMax = document.getElementById('tpl-rr-max').value;
+        const hrAlert = document.getElementById('tpl-hr-alert').value;
+        const tempAlert = document.getElementById('tpl-temp-alert').value;
+
+        const templateText = `【麻酔支援CE指示】
+麻酔科：${doctor}Dr
+・SBP ${sbpMin}～${sbpMax}mmHg でコントロール
+・SBP ${dropSbp}mmHg 以下で ${drug} ${drugDose}${drugUnit} / ${drugVol}ml フラッシュ
+・EtCO2 ${etco2Min}～${etco2Max}mmHg / ${rrMin}～${rrMax}回 でコントロール
+・HR ${hrAlert}回以下 Drコール
+・体温 ${tempAlert}℃以下`;
+
+        const memoInput = document.getElementById('memo-input');
+        if(memoInput.value) {
+             memoInput.value += '\n\n' + templateText;
+        } else {
+             memoInput.value = templateText;
+        }
+        
+        document.getElementById('template-anesthesia-instruction').style.display = 'none';
     }
 
     function loadPreset() {

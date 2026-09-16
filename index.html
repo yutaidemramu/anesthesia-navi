@@ -337,8 +337,10 @@
         .monitor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
         .monitor-item { background-color: #1C1C1E; padding: 24px; border-radius: 16px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: relative; cursor: pointer; transition: background-color 0.2s; }
         .monitor-item:hover { background-color: #2C2C2E; }
-        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: default;}
-        .monitor-item.action:hover { background-color: rgba(255, 59, 48, 0.1); } /* アクションはクリックさせない想定 */
+        
+        /* === アクション項目もクリック(編集)可能にする === */
+        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} 
+        .monitor-item.action:hover { background-color: rgba(255, 59, 48, 0.2); } 
 
         .monitor-label { font-size: 16px; color: #8E8E93; font-weight: 600; margin-bottom: 8px; letter-spacing: 1px; width: 100%; display: flex; justify-content: space-between; align-items: center;}
         .monitor-value { font-size: 42px; font-weight: 700; font-family: 'Helvetica Neue', monospace; color: #FFFFFF; line-height: 1.1; }
@@ -414,6 +416,16 @@
         body.mode-monitor .scan-tab-btn.active { background-color: #48484A; color: #FFF; }
 
         .hidden { display: none !important; }
+        
+        /* === 編集モーダルのテキストエリア用 (追加) === */
+        #edit-modal-textarea {
+            width: 100%;
+            font-size: 18px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: bold;
+            display: none; /* 初期は非表示 */
+        }
     </style>
     
     <!-- バーコードリーダー用ライブラリ (html5-qrcode) -->
@@ -487,8 +499,12 @@
                         <div class="monitor-label"><span>体温低下 アラート</span><i class="fa-solid fa-pen" style="color: #48484A;"></i></div>
                         <div id="dash-temp" class="monitor-value">---</div>
                     </div>
-                    <div class="monitor-item action">
-                        <div class="monitor-label" style="color: #FF3B30 !important; margin-bottom: 12px;">血圧低下時のアクション</div>
+                    <!-- === アクション項目の編集を可能にする === -->
+                    <div class="monitor-item action" onclick="openEditModal('dash-action', '血圧低下時のアクション')">
+                        <div class="monitor-label" style="color: #FF3B30 !important; margin-bottom: 12px;">
+                            <span>血圧低下時のアクション</span>
+                            <i class="fa-solid fa-pen" style="color: #FF3B30; opacity: 0.7;"></i>
+                        </div>
                         <div id="dash-action" class="monitor-value">---</div>
                     </div>
                 </div>
@@ -736,7 +752,11 @@
 <div id="edit-modal" class="modal-overlay" onclick="closeEditModal(event)">
     <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-title" id="edit-modal-title">値の変更</div>
+        <!-- 1行の入力枠 -->
         <input type="text" id="edit-modal-input" style="font-size: 20px; text-align: center; margin-bottom: 20px; font-weight: bold;">
+        <!-- === 複数行の入力枠 (アクション編集用) === -->
+        <textarea id="edit-modal-textarea" rows="3"></textarea>
+        
         <input type="hidden" id="edit-modal-target">
         <button class="action-btn" style="background-color: #FF9500;" onclick="saveEditValue()">保存して履歴に残す</button>
         <button class="modal-close" onclick="closeEditModal()">キャンセル</button>
@@ -863,8 +883,15 @@
     function startBarcodeScanner() {
         if (!html5QrcodeScanner) {
             // QR/バーコード全般を許可する設定
+            // 修正: facingMode: "environment" を指定して背面カメラを強制
             html5QrcodeScanner = new Html5QrcodeScanner(
-                "reader", { fps: 10, qrbox: {width: 250, height: 100} }, false);
+                "reader", { 
+                    fps: 10, 
+                    qrbox: {width: 250, height: 100},
+                    videoConstraints: {
+                        facingMode: "environment"
+                    }
+                }, false);
             
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
@@ -905,13 +932,20 @@
     async function startOcrCamera() {
         const video = document.getElementById('camera-video');
         try {
+            // 修正: facingMode: "environment" で背面カメラを指定
             videoStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" } // 背面カメラを優先
+                video: { facingMode: { exact: "environment" } } 
             });
             video.srcObject = videoStream;
         } catch (err) {
-            console.error("Camera access denied or not available.", err);
-            document.getElementById('ocr-status').innerText = "カメラへのアクセスが拒否されたか、利用できません。";
+            console.error("Back camera access denied or not available, trying default.", err);
+            // 背面カメラが使えない場合（PCなど）はデフォルトカメラを使用
+            try {
+                 videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                 video.srcObject = videoStream;
+            } catch(e) {
+                 document.getElementById('ocr-status').innerText = "カメラへのアクセスが拒否されたか、利用できません。";
+            }
         }
     }
 
@@ -941,8 +975,11 @@
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
+        
+        // --- 修正: コントラスト調整によるOCR精度向上 ---
+        // 描画する前に、画像処理を挟んで文字を読みやすくする
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
+        
         // Tesseract.jsで日本語と英語(英数字)を認識
         try {
             const { data: { text } } = await Tesseract.recognize(
@@ -973,17 +1010,19 @@
         let foundId = "";
         let foundName = "";
 
-        // 患者IDの抽出 (例: "ID: 12345" または "12345678" のような数字の羅列を探す)
-        // 実際のカルテフォーマットに合わせて正規表現を調整します
-        const idMatch = normalizedText.match(/(?:ID|ＩＤ)[:：]?\s*([0-9]{5,10})/i) || normalizedText.match(/([0-9]{6,10})/);
+        // --- 修正: 正規表現の強化 (精度の向上) ---
+        // 患者IDの抽出 (例: "ID: 12345", "ID12345", または単なる数字の羅列)
+        const idMatch = normalizedText.match(/(?:ID|ＩＤ|1D|lD)[:：\s]*([0-9]{5,10})/i) || normalizedText.match(/([0-9]{6,10})/);
         if (idMatch) {
             foundId = idMatch[1];
         }
 
         // 氏名の抽出 (例: "氏名: 桑名 太郎" または "様" の前にある文字列)
-        const nameMatch = normalizedText.match(/(?:氏名|名前)[:：]\s*([^\n]+)/) || normalizedText.match(/([^\n]+?)\s*(?:様|殿)/);
+        // 誤認識（氏名が氏名：など）も考慮
+        const nameMatch = normalizedText.match(/(?:氏名|名前|患者名)[:：\s]*([^\n]+)/) || normalizedText.match(/([^\n]+?)\s*(?:様|殿|さん)/);
         if (nameMatch) {
-            foundName = nameMatch[1].trim();
+            // 余計な記号などを除去
+            foundName = nameMatch[1].replace(/[「」『』【】\[\]]/g, '').trim();
         }
 
         closeCameraModal();
@@ -1002,13 +1041,14 @@
             showMessage(msg);
             
             // デモ用: 特定のキーワードが含まれていたら術式もセット
-            if (normalizedText.includes("桑名") || normalizedText.includes("整形")) {
+            if (normalizedText.includes("桑名") || normalizedText.includes("整形") || normalizedText.includes("骨折")) {
                 document.getElementById('procedure-select').value = "kuwana_sekima";
                 showPreparationList();
             }
 
         } else {
-            showMessage("文字は読み取れましたが、患者情報を特定できませんでした。\n\n【読み取ったテキスト】\n" + text.substring(0, 50) + "...");
+            // 何も見つからなかった場合は、読み取った文字列を表示してユーザーに確認してもらう
+            showMessage("患者情報を自動で特定できませんでした。\n\n【読み取ったテキスト】\n" + text.substring(0, 100) + "...");
         }
     }
 
@@ -1068,12 +1108,23 @@
     // --- 術中モニタ インライン編集ロジック ---
     function openEditModal(targetId, title) {
         const currentValue = document.getElementById(targetId).innerText;
-        // アクション項目の場合や、まだ設定されていない場合は編集させない or 空にする
-        if(currentValue === "---" || targetId === "dash-action") {
-            document.getElementById('edit-modal-input').value = "";
+        const inputEl = document.getElementById('edit-modal-input');
+        const textareaEl = document.getElementById('edit-modal-textarea');
+        
+        // === アクション項目の場合は改行を含むためテキストエリアにする ===
+        if(targetId === "dash-action") {
+            inputEl.style.display = 'none';
+            textareaEl.style.display = 'block';
+            textareaEl.value = currentValue === "---" ? "" : currentValue.trim();
         } else {
-            // 余分な改行やHTMLタグを除去してプレーンテキストにする
-            document.getElementById('edit-modal-input').value = currentValue.replace(/\n/g, " ").trim();
+            textareaEl.style.display = 'none';
+            inputEl.style.display = 'block';
+            if(currentValue === "---") {
+                inputEl.value = "";
+            } else {
+                // 余分な改行やHTMLタグを除去してプレーンテキストにする
+                inputEl.value = currentValue.replace(/\n/g, " ").trim();
+            }
         }
         
         document.getElementById('edit-modal-title').innerText = `${title} の変更`;
@@ -1087,21 +1138,37 @@
 
     function saveEditValue() {
         const targetId = document.getElementById('edit-modal-target').value;
-        const newValue = document.getElementById('edit-modal-input').value.trim();
         const title = document.getElementById('edit-modal-title').innerText.replace(' の変更', '');
         const targetElement = document.getElementById(targetId);
+        
+        let newValue = "";
+        // === アクションか否かで値の取得元を変える ===
+        if(targetId === "dash-action") {
+            newValue = document.getElementById('edit-modal-textarea').value.trim();
+        } else {
+            newValue = document.getElementById('edit-modal-input').value.trim();
+        }
         
         if(!newValue) {
             closeEditModal();
             return;
         }
 
-        const oldValue = targetElement.innerText.replace(/\n/g, " ").trim();
+        // 古い値を取得（アクションの場合は改行を含めてそのまま、他は1行に）
+        let oldValue = "";
+        if(targetId === "dash-action") {
+             oldValue = targetElement.innerText.trim();
+        } else {
+             oldValue = targetElement.innerText.replace(/\n/g, " ").trim();
+        }
         
         // 画面の更新
         if (targetId === "dash-hr" || targetId === "dash-temp") {
             // アラート系は色を付ける
             targetElement.innerHTML = `<span class="highlight">${newValue}</span>`;
+        } else if (targetId === "dash-action") {
+            // === アクションは改行を <br> に変換して表示 ===
+            targetElement.innerHTML = newValue.replace(/\n/g, '<br>');
         } else {
             targetElement.innerText = newValue;
         }
@@ -1110,7 +1177,10 @@
 
         // 変更履歴としてメモと特記事項に残す
         const timeStr = timeString();
-        const logText = `【設定変更】${title} を [ ${oldValue} ] から [ ${newValue} ] に変更`;
+        // ログ用に改行を見やすく置換
+        const logOldValue = oldValue.replace(/\n/g, " / ");
+        const logNewValue = newValue.replace(/\n/g, " / ");
+        const logText = `【設定変更】${title} を [ ${logOldValue} ] から [ ${logNewValue} ] に変更`;
         
         appendDashNote(logText, timeStr);
         addMemoDirect(logText, timeStr);

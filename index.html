@@ -337,7 +337,9 @@
         .monitor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
         .monitor-item { background-color: #1C1C1E; padding: 24px; border-radius: 16px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: relative; cursor: pointer; transition: background-color 0.2s; }
         .monitor-item:hover { background-color: #2C2C2E; }
-        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} /* アクションはクリックさせない想定 */
+        
+        /* === アクション項目もクリック(編集)可能にする === */
+        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} 
         .monitor-item.action:hover { background-color: rgba(255, 59, 48, 0.2); } 
 
         .monitor-label { font-size: 16px; color: #8E8E93; font-weight: 600; margin-bottom: 8px; letter-spacing: 1px; width: 100%; display: flex; justify-content: space-between; align-items: center;}
@@ -415,7 +417,7 @@
 
         .hidden { display: none !important; }
         
-        /* === 編集モーダルのテキストエリア用 (追加) === */
+        /* === 編集モーダルのテキストエリア用 === */
         #edit-modal-textarea {
             width: 100%;
             font-size: 18px;
@@ -893,13 +895,14 @@
         }
         
         function initScanner() {
-             // facingMode: "environment" で背面カメラを強制
+            // 修正: 確実に背面カメラを優先起動させる
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader", { 
                     fps: 10, 
                     qrbox: {width: 250, height: 100},
+                    // 強制的に背面カメラを指定
                     videoConstraints: {
-                        facingMode: "environment"
+                        facingMode: { exact: "environment" }
                     }
                 }, false);
             
@@ -948,7 +951,7 @@
         }
         
         try {
-            // 背面カメラを強制指定
+            // 修正: 確実に背面カメラを強制指定
             videoStream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: { exact: "environment" } } 
             });
@@ -957,7 +960,9 @@
             console.error("Back camera access denied or not available, trying default.", err);
             // 背面カメラが使えない場合（PCなど）はデフォルトのカメラにフォールバック
             try {
-                 videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                 videoStream = await navigator.mediaDevices.getUserMedia({ 
+                     video: { facingMode: "environment" } // exactを外して緩い条件で再試行
+                 });
                  video.srcObject = videoStream;
             } catch(e) {
                  document.getElementById('ocr-status').innerText = "カメラへのアクセスが拒否されたか、利用できません。";
@@ -979,13 +984,16 @@
         const canvas = document.getElementById('camera-canvas');
         const status = document.getElementById('ocr-status');
         const scanLine = document.getElementById('ocr-scan-line');
+        const captureBtn = document.getElementById('ocr-capture-btn');
         
         if (!videoStream) return;
 
-        // アニメーション開始
+        // アニメーションと状態表示の開始
         scanLine.style.display = 'block';
+        status.style.display = 'block';
         status.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> AIが文字を解析中... (数秒かかります)";
-        document.getElementById('ocr-capture-btn').disabled = true;
+        captureBtn.disabled = true;
+        captureBtn.style.backgroundColor = "#8E8E93"; // ボタンの色を変えて「処理中」を明示
 
         // videoの現在のフレームをcanvasに描画
         canvas.width = video.videoWidth;
@@ -994,8 +1002,9 @@
         
         // --- 修正: コントラスト調整によるOCR精度向上 ---
         // 描画する前に、画像処理を挟んで文字を読みやすくする（簡易版）
-        // Tesseractの認識精度向上のための前処理
+        ctx.filter = 'contrast(150%) brightness(120%)';
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none'; // リセット
         
         // Tesseract.jsで日本語と英語(英数字)を認識
         try {
@@ -1013,7 +1022,8 @@
             status.innerText = "読み取りに失敗しました。もう一度お試しください。";
         } finally {
             scanLine.style.display = 'none';
-            document.getElementById('ocr-capture-btn').disabled = false;
+            captureBtn.disabled = false;
+            captureBtn.style.backgroundColor = "#34C759";
         }
     }
 
@@ -1029,24 +1039,23 @@
 
         // --- 修正: 正規表現の強化 (精度の向上) ---
         // 患者IDの抽出 (例: "ID: 12345", "ID12345", または単なる数字の羅列)
-        // 1DやlDなどの誤認識にも対応
-        const idMatch = normalizedText.match(/(?:ID|ＩＤ|1D|lD)[:：\s]*([0-9]{5,10})/i) || normalizedText.match(/([0-9]{6,10})/);
+        // 1DやlDなどの誤認識、No.や患者番号などにも対応
+        const idMatch = normalizedText.match(/(?:ID|ＩＤ|1D|lD|No\.|患者番号)[:：\s]*([0-9]{5,10})/i) || normalizedText.match(/([0-9]{6,10})/);
         if (idMatch) {
             foundId = idMatch[1];
         }
 
         // 氏名の抽出 (例: "氏名: 桑名 太郎" または "様" の前にある文字列)
-        // 誤認識（氏名が氏名：など）も考慮
-        const nameMatch = normalizedText.match(/(?:氏名|名前|患者名)[:：\s]*([^\n]+)/) || normalizedText.match(/([^\n]+?)\s*(?:様|殿|さん)/);
+        // 誤認識（氏名が氏名：など）も考慮。「様」「さん」「サン」「殿」をフックにする
+        const nameMatch = normalizedText.match(/(?:氏名|名前|患者名|カナ)[:：\s]*([^\n]+)/) || normalizedText.match(/([^\n]+?)\s*(?:様|殿|さん|サン|ｻﾝ)/);
         if (nameMatch) {
             // 余計な記号などを除去
             foundName = nameMatch[1].replace(/[「」『』【】\[\]]/g, '').trim();
         }
 
-        closeCameraModal();
-
         // 抽出結果の反映
         if (foundId || foundName) {
+            closeCameraModal();
             let msg = "カルテから以下の情報を抽出しました。\n";
             if(foundId) {
                 document.getElementById('patient-id').value = foundId;
@@ -1065,8 +1074,11 @@
             }
 
         } else {
-            // 何も見つからなかった場合は、読み取った文字列を表示してユーザーに確認してもらう
-            showMessage("患者情報を自動で特定できませんでした。\n\n【読み取ったテキスト】\n" + text.substring(0, 100) + "...");
+            // 何も見つからなかった場合は、読み取った文字列を表示してユーザーに確認してもらう（エラー表示を見やすく）
+            const status = document.getElementById('ocr-status');
+            status.style.display = 'block';
+            status.style.color = '#FF3B30';
+            status.innerHTML = `情報が見つかりませんでした。<br>もう少し画面に近づけるか、明るい場所で試してください。<br><span style="font-size:10px; color:#8E8E93;">認識テキスト: ${text.substring(0, 30)}...</span>`;
         }
     }
 
@@ -1473,4 +1485,4 @@
 </script>
 
 </body>
-</html>,document_type:HTML,title:麻酔準備ナビ＆計算アシスト (完全最新版)}
+</html>,document_type:HTML,title:麻酔準備ナビ＆計算アシスト (カメラ機能強化版)}

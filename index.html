@@ -337,7 +337,9 @@
         .monitor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
         .monitor-item { background-color: #1C1C1E; padding: 24px; border-radius: 16px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: relative; cursor: pointer; transition: background-color 0.2s; }
         .monitor-item:hover { background-color: #2C2C2E; }
-        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} /* アクションはクリックさせない想定 */
+        
+        /* === アクション項目もクリック(編集)可能にする === */
+        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} 
         .monitor-item.action:hover { background-color: rgba(255, 59, 48, 0.2); } 
 
         .monitor-label { font-size: 16px; color: #8E8E93; font-weight: 600; margin-bottom: 8px; letter-spacing: 1px; width: 100%; display: flex; justify-content: space-between; align-items: center;}
@@ -1003,11 +1005,11 @@
         
         function initScanner() {
             // facingMode: "environment" で背面カメラを指定
+            // ブラウザの仕様によるエラーを回避するため、exactは使用せず"environment"のみとする
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader", { 
                     fps: 10, 
                     qrbox: {width: 250, height: 100},
-                    // facingMode を exact ではなく緩く指定することでエラーを回避しつつ背面を優先
                     videoConstraints: {
                         facingMode: "environment"
                     }
@@ -1087,26 +1089,41 @@
         analyzeBtn.disabled = true;
         analyzeBtn.style.backgroundColor = "#8E8E93";
 
-        // Tesseract.jsで日本語と英語(英数字)を認識
-        try {
-            const { data: { text } } = await Tesseract.recognize(
-                currentOcrImageSrc,
-                'jpn+eng',
-                { logger: m => console.log(m) } // 進捗をコンソールに出力
-            );
+        // Tesseractに読み込ませるための前処理（キャンバスに描画して画像補正）
+        const img = new Image();
+        img.onload = async function() {
+            const canvas = document.getElementById('camera-canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            
+            // 精度向上のためのコントラスト調整
+            ctx.filter = 'grayscale(100%) contrast(150%) brightness(110%)';
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            ctx.filter = 'none';
 
-            console.log("OCR Result:", text);
-            processOcrText(text);
+            // Tesseract.jsで日本語と英語(英数字)を認識
+            try {
+                const { data: { text } } = await Tesseract.recognize(
+                    canvas,
+                    'jpn+eng',
+                    { logger: m => console.log(m) }
+                );
 
-        } catch (error) {
-            console.error("OCR Error:", error);
-            status.innerText = "読み取りに失敗しました。もう一度撮影からやり直してください。";
-            status.style.color = "#FF3B30";
-        } finally {
-            scanLine.style.display = 'none';
-            analyzeBtn.disabled = false;
-            analyzeBtn.style.backgroundColor = "#34C759";
-        }
+                console.log("OCR Result:", text);
+                processOcrText(text);
+
+            } catch (error) {
+                console.error("OCR Error:", error);
+                status.innerText = "読み取りに失敗しました。もう一度撮影からやり直してください。";
+                status.style.color = "#FF3B30";
+            } finally {
+                scanLine.style.display = 'none';
+                analyzeBtn.disabled = false;
+                analyzeBtn.style.backgroundColor = "#34C759";
+            }
+        };
+        img.src = currentOcrImageSrc;
     }
 
     // OCRで読み取ったテキストから情報を抽出するロジック
@@ -1121,49 +1138,48 @@
             id: "", kana: "", name: "", dob: "", age: "", sex: "", height: "", weight: "", disease: "", operation: ""
         };
 
-        // --- 正規表現による各項目の抽出 ---
-        // 実際のカルテのフォーマットに合わせて調整が必要です。
-        // ※「〇〇【抽出したい文字】」のようなパターンを想定
+        // --- 強化版：正規表現による各項目の抽出 ---
+        // ※「〇〇【抽出したい文字】」や「〇〇: 抽出文字」などの多様なパターンを想定
 
         // 【患者ID】
-        const idMatch = normalizedText.match(/(?:ID|ＩＤ|患者ID|患者番号|No\.)\s*【?([A-Za-z0-9-]+)】?/i) || normalizedText.match(/([0-9]{5,10})/);
+        const idMatch = normalizedText.match(/(?:ID|ＩＤ|患者ID|患者番号|No\.)\s*[【:：]?\s*([0-9A-Za-z-]{5,12})/i) || normalizedText.match(/([0-9]{5,10})/);
         if (idMatch) extracted.id = idMatch[1].trim();
 
         // 【患者カナ】
-        const kanaMatch = normalizedText.match(/(?:カナ|患者カナ)\s*【([^】]+)】/);
+        const kanaMatch = normalizedText.match(/(?:カナ|患者カナ|ﾌﾘｶﾞﾅ)\s*[【:：]?\s*([ァ-ヶー\s]+)/);
         if (kanaMatch) extracted.kana = kanaMatch[1].trim();
 
         // 【患者氏名】
-        const nameMatch = normalizedText.match(/(?:氏名|名前|患者氏名)\s*【([^】]+)】/);
-        if (nameMatch) extracted.name = nameMatch[1].trim();
+        const nameMatch = normalizedText.match(/(?:氏名|名前|患者氏名)\s*[【:：]?\s*([^\n】]+)/);
+        if (nameMatch) extracted.name = nameMatch[1].replace(/[「」『』【】\[\]]/g, '').trim();
 
-        // 【生年月日】
-        const dobMatch = normalizedText.match(/(?:生年月日)\s*【?([0-9]{4}\/[0-9]{1,2}\/[0-9]{1,2}|[A-Za-z]+\s[0-9]{1,2},\s[0-9]{4})】?/);
+        // 【生年月日】(例: 1980/01/01, 1980年1月1日)
+        const dobMatch = normalizedText.match(/(?:生年月日)\s*[【:：]?\s*([0-9]{4}[年/][0-9]{1,2}[月/][0-9]{1,2}日?)/);
         if (dobMatch) extracted.dob = dobMatch[1].trim();
 
         // 【年齢】
-        const ageMatch = normalizedText.match(/(?:年齢)\s*【?([0-9]{1,3})】?(?:歳)?/);
+        const ageMatch = normalizedText.match(/(?:年齢)\s*[【:：]?\s*([0-9]{1,3})\s*(?:歳|才)?/);
         if (ageMatch) extracted.age = ageMatch[1].trim();
 
         // 【性別】
-        const sexMatch = normalizedText.match(/(?:性別)\s*【?([男女MF])】?/);
+        const sexMatch = normalizedText.match(/(?:性別)\s*[【:：]?\s*([男女MF])/);
         if (sexMatch) extracted.sex = sexMatch[1].trim();
 
         // 【身長】
-        const heightMatch = normalizedText.match(/(?:身長)\s*【?([0-9.]+)】?(?:cm)?/i);
+        const heightMatch = normalizedText.match(/(?:身長)\s*[【:：]?\s*([0-9.]+)\s*(?:cm)?/i);
         if (heightMatch) extracted.height = heightMatch[1].trim();
 
         // 【体重】
-        const weightMatch = normalizedText.match(/(?:体重)\s*【?([0-9.]+)】?(?:kg)?/i);
+        const weightMatch = normalizedText.match(/(?:体重)\s*[【:：]?\s*([0-9.]+)\s*(?:kg)?/i);
         if (weightMatch) extracted.weight = weightMatch[1].trim();
 
         // 【病名】
-        const diseaseMatch = normalizedText.match(/(?:病名|診断名)[\s・]*【([^】]+)】/);
-        if (diseaseMatch) extracted.disease = diseaseMatch[1].trim();
+        const diseaseMatch = normalizedText.match(/(?:病名|診断名|疾患名)\s*[【:：]?\s*([^\n】]+)/);
+        if (diseaseMatch) extracted.disease = diseaseMatch[1].replace(/[「」『』【】\[\]]/g, '').trim();
 
         // 【術式】
-        const operationMatch = normalizedText.match(/(?:術式|手術名)[\s・]*【([^】]+)】/);
-        if (operationMatch) extracted.operation = operationMatch[1].trim();
+        const operationMatch = normalizedText.match(/(?:術式|手術名|予定術式)\s*[【:：]?\s*([^\n】]+)/);
+        if (operationMatch) extracted.operation = operationMatch[1].replace(/[「」『』【】\[\]]/g, '').trim();
 
         // UIに反映（確認・修正フォームの表示）
         document.getElementById('ocr-res-id').value = extracted.id;
@@ -1178,7 +1194,7 @@
         document.getElementById('ocr-res-operation').value = extracted.operation;
 
         // 写真エリアを隠して結果フォームを表示
-        document.getElementById('ocr-frame').style.display = 'none';
+        document.getElementById('ocr-captured-image').style.display = 'none';
         document.getElementById('ocr-btn-group').style.display = 'none';
         document.getElementById('ocr-status').style.display = 'none';
         document.getElementById('ocr-result-form').style.display = 'block';
@@ -1198,7 +1214,17 @@
         document.getElementById('patient-operation').value = document.getElementById('ocr-res-operation').value;
 
         closeCameraModal();
-        showMessage("患者情報を自動入力しました。");
+        showMessage("患者情報を自動入力しました。内容を確認してください。");
+        
+        // デモ用: 術式名から自動でセレクトボックスを選ぶ処理（簡易版）
+        const opName = document.getElementById('ocr-res-operation').value;
+        if (opName.includes("膀胱") || opName.includes("全身")) {
+            document.getElementById('procedure-select').value = "kuwana_zenshin";
+            showPreparationList();
+        } else if (opName.includes("骨折") || opName.includes("整形") || opName.includes("脊髄")) {
+            document.getElementById('procedure-select').value = "kuwana_sekima";
+            showPreparationList();
+        }
     }
 
 
@@ -1604,4 +1630,4 @@
 </script>
 
 </body>
-</html>,document_type:HTML,title:麻酔準備ナビ＆計算アシスト (完全最新版)}
+</html>,document_type:HTML,title:麻酔準備ナビ＆計算アシスト (カメラ機能強化版)}

@@ -337,9 +337,7 @@
         .monitor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
         .monitor-item { background-color: #1C1C1E; padding: 24px; border-radius: 16px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: relative; cursor: pointer; transition: background-color 0.2s; }
         .monitor-item:hover { background-color: #2C2C2E; }
-        
-        /* === アクション項目もクリック(編集)可能にする === */
-        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} 
+        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} /* アクションはクリックさせない想定 */
         .monitor-item.action:hover { background-color: rgba(255, 59, 48, 0.2); } 
 
         .monitor-label { font-size: 16px; color: #8E8E93; font-weight: 600; margin-bottom: 8px; letter-spacing: 1px; width: 100%; display: flex; justify-content: space-between; align-items: center;}
@@ -392,20 +390,12 @@
         #camera-video { width: 100%; height: 100%; object-fit: contain; } /* coverからcontainに変更し見切れを防ぐ */
         #camera-canvas { display: none; }
         
-        /* OCRスキャン時のレーザーライン演出 */
+        /* OCRスキャン時の写真撮影演出用 */
+        #ocr-captured-image { display: none; width: 100%; max-height: 300px; object-fit: contain; border-radius: 8px; }
+
         .scanner-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
             border: 2px solid rgba(52, 199, 89, 0.5); box-sizing: border-box;
-        }
-        .scanner-line {
-            position: absolute; top: 0; left: 0; width: 100%; height: 2px; background-color: #34C759;
-            box-shadow: 0 0 10px #34C759; animation: scan 2.5s ease-in-out infinite; display: none; /* アニメーションを滑らかに */
-        }
-        @keyframes scan { 
-            0% { top: 0%; opacity: 0; } 
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { top: 100%; opacity: 0; } 
         }
         
         /* スキャナー切り替えタブ */
@@ -417,7 +407,7 @@
 
         .hidden { display: none !important; }
         
-        /* === 編集モーダルのテキストエリア用 === */
+        /* === 編集モーダルのテキストエリア用 (追加) === */
         #edit-modal-textarea {
             width: 100%;
             font-size: 18px;
@@ -425,6 +415,26 @@
             margin-bottom: 20px;
             font-weight: bold;
             display: none; /* 初期は非表示 */
+        }
+
+        /* OCR結果表示用UI */
+        .ocr-result-container {
+            text-align: left;
+            margin-bottom: 16px;
+        }
+        .ocr-result-container .input-row {
+            margin-bottom: 8px;
+        }
+        .ocr-result-container label {
+            width: 80px;
+            display: inline-block;
+            color: #1C1C1E;
+        }
+        body.mode-monitor .ocr-result-container label { color: #FFF; }
+        .ocr-result-container input {
+            width: calc(100% - 90px);
+            margin-bottom: 0;
+            padding: 8px;
         }
     </style>
     
@@ -456,10 +466,52 @@
                     <h2 style="margin: 0; font-size: 16px;">患者情報</h2>
                     <button class="action-btn" style="width: auto; padding: 6px 12px; background-color: #34C759; font-size: 13px;" onclick="openCameraModal()"><i class="fa-solid fa-camera"></i> カメラで読取</button>
                 </div>
-                <div class="input-row" style="margin-bottom: 0;">
-                    <input type="text" id="patient-id" placeholder="患者ID" style="width: 35%; margin-bottom: 0;">
-                    <input type="text" id="patient-name" placeholder="患者氏名" style="width: 60%; margin-bottom: 0; margin-left: 5%;">
+                
+                <div class="input-row">
+                    <strong style="width:70px;">ID</strong>
+                    <input type="text" id="patient-id" placeholder="患者ID" style="width: 100%;">
                 </div>
+                <div class="input-row">
+                    <strong style="width:70px;">カナ</strong>
+                    <input type="text" id="patient-kana" placeholder="患者カナ" style="width: 100%;">
+                </div>
+                <div class="input-row">
+                    <strong style="width:70px;">氏名</strong>
+                    <input type="text" id="patient-name" placeholder="患者氏名" style="width: 100%;">
+                </div>
+                <div class="input-row" style="gap: 10px;">
+                    <div style="display:flex; align-items:center; flex:1;">
+                        <strong style="width:70px;">生年月日</strong>
+                        <input type="text" id="patient-dob" placeholder="YYYY/MM/DD" style="width: 100%;">
+                    </div>
+                    <div style="display:flex; align-items:center; width:80px;">
+                        <strong style="width:40px;">年齢</strong>
+                        <input type="text" id="patient-age" placeholder="" style="width: 100%;">
+                    </div>
+                    <div style="display:flex; align-items:center; width:80px;">
+                        <strong style="width:40px;">性別</strong>
+                        <input type="text" id="patient-sex" placeholder="" style="width: 100%;">
+                    </div>
+                </div>
+                <div class="input-row" style="gap: 10px;">
+                    <div style="display:flex; align-items:center; flex:1;">
+                        <strong style="width:70px;">身長</strong>
+                        <input type="text" id="patient-height" placeholder="cm" style="width: 100%;">
+                    </div>
+                    <div style="display:flex; align-items:center; flex:1;">
+                        <strong style="width:70px;">体重</strong>
+                        <input type="text" id="patient-weight" placeholder="kg" style="width: 100%;">
+                    </div>
+                </div>
+                <div class="input-row">
+                    <strong style="width:70px;">病名</strong>
+                    <input type="text" id="patient-disease" placeholder="病名" style="width: 100%;">
+                </div>
+                <div class="input-row">
+                    <strong style="width:70px;">術式</strong>
+                    <input type="text" id="patient-operation" placeholder="術式" style="width: 100%;">
+                </div>
+                
             </div>
 
             <!-- 準備リスト用セレクタ -->
@@ -778,16 +830,55 @@
         </div>
 
         <div class="scanner-frame" id="ocr-frame" style="display: none;">
-            <video id="camera-video" autoplay playsinline></video>
-            <canvas id="camera-canvas"></canvas>
-            <div class="scanner-overlay"></div>
+            <!-- リアルタイムのビデオプレビューは非表示にし、撮影された画像を表示する方式に変更 -->
+            <video id="camera-video" autoplay playsinline style="display: none;"></video>
+            <canvas id="camera-canvas" style="display: none;"></canvas>
+            
+            <img id="ocr-captured-image" src="" alt="Captured Image">
+            <div id="ocr-preview-placeholder" style="color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+                <i class="fa-solid fa-camera" style="font-size: 48px; margin-bottom: 16px; color: #8E8E93;"></i>
+                <span style="color: #8E8E93;">下のボタンから写真を撮影してください</span>
+            </div>
+
+            <div class="scanner-overlay" id="ocr-scanner-overlay" style="display:none;"></div>
             <div class="scanner-line" id="ocr-scan-line"></div>
         </div>
         
         <div id="ocr-status" style="font-size: 13px; color: #8E8E93; margin-bottom: 12px; display: none;"></div>
 
-        <button class="action-btn" id="ocr-capture-btn" style="background-color: #34C759; display: none;" onclick="executeOCR()">カルテを撮影して読取</button>
-        <button class="modal-close" onclick="closeCameraModal()">キャンセルして閉じる</button>
+        <!-- 撮影ボタンと解析ボタンを分ける -->
+        <div id="ocr-btn-group" style="display: none; flex-direction: column; gap: 10px;">
+            <!-- ネイティブのカメラアプリを起動するための input type="file" を使用 -->
+            <input type="file" id="ocr-file-input" accept="image/*" capture="environment" style="display: none;" onchange="handleOcrImageCapture(event)">
+            <button class="action-btn" id="ocr-take-photo-btn" style="background-color: #007AFF;" onclick="document.getElementById('ocr-file-input').click();">
+                <i class="fa-solid fa-camera"></i> 写真を撮影して読み込む
+            </button>
+            
+            <!-- 撮影した画像がある場合のみ表示される解析ボタン -->
+            <button class="action-btn" id="ocr-analyze-btn" style="background-color: #34C759; display: none;" onclick="executeOCR()">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> この画像をAIで解析する
+            </button>
+        </div>
+
+        <div id="ocr-result-form" class="ocr-result-container" style="display: none;">
+            <!-- 解析結果を編集・確認するフォーム -->
+            <div style="font-size: 14px; font-weight: bold; color: #34C759; margin-bottom: 12px; text-align: center;">抽出結果（修正可能です）</div>
+            
+            <div class="input-row"><label>ID</label><input type="text" id="ocr-res-id"></div>
+            <div class="input-row"><label>カナ</label><input type="text" id="ocr-res-kana"></div>
+            <div class="input-row"><label>氏名</label><input type="text" id="ocr-res-name"></div>
+            <div class="input-row"><label>生年月日</label><input type="text" id="ocr-res-dob"></div>
+            <div class="input-row"><label>年齢</label><input type="text" id="ocr-res-age"></div>
+            <div class="input-row"><label>性別</label><input type="text" id="ocr-res-sex"></div>
+            <div class="input-row"><label>身長</label><input type="text" id="ocr-res-height"></div>
+            <div class="input-row"><label>体重</label><input type="text" id="ocr-res-weight"></div>
+            <div class="input-row"><label>病名</label><input type="text" id="ocr-res-disease"></div>
+            <div class="input-row"><label>術式</label><input type="text" id="ocr-res-operation"></div>
+
+            <button class="action-btn" style="background-color: #007AFF; margin-top: 12px;" onclick="applyOcrResult()">この内容で患者情報に反映する</button>
+        </div>
+
+        <button class="modal-close" onclick="closeCameraModal()" style="margin-top: 16px;">キャンセルして閉じる</button>
     </div>
 </div>
 
@@ -834,8 +925,8 @@
 
     // --- カメラ連携 (バーコード & OCR) 実装 ---
     let html5QrcodeScanner = null;
-    let videoStream = null;
     let scanMode = 'barcode'; // 'barcode' or 'ocr'
+    let currentOcrImageSrc = null;
 
     function openCameraModal() {
         document.getElementById('camera-modal').style.display = 'flex';
@@ -845,7 +936,14 @@
     function closeCameraModal(event) {
         document.getElementById('camera-modal').style.display = 'none';
         stopBarcodeScanner();
-        stopOcrCamera();
+        // OCRの状態リセット
+        document.getElementById('ocr-captured-image').style.display = 'none';
+        document.getElementById('ocr-preview-placeholder').style.display = 'flex';
+        document.getElementById('ocr-analyze-btn').style.display = 'none';
+        document.getElementById('ocr-take-photo-btn').style.display = 'block';
+        document.getElementById('ocr-result-form').style.display = 'none';
+        document.getElementById('ocr-status').style.display = 'none';
+        currentOcrImageSrc = null;
     }
 
     function switchScanMode(mode) {
@@ -854,7 +952,7 @@
         const tabOcr = document.getElementById('tab-ocr');
         const reader = document.getElementById('reader');
         const ocrFrame = document.getElementById('ocr-frame');
-        const ocrBtn = document.getElementById('ocr-capture-btn');
+        const ocrBtnGroup = document.getElementById('ocr-btn-group');
         const ocrStatus = document.getElementById('ocr-status');
 
         if (mode === 'barcode') {
@@ -862,26 +960,35 @@
             tabOcr.classList.remove('active');
             reader.style.display = 'block';
             ocrFrame.style.display = 'none';
-            ocrBtn.style.display = 'none';
+            ocrBtnGroup.style.display = 'none';
             ocrStatus.style.display = 'none';
-            stopOcrCamera();
+            
+            // OCRフォームを隠す
+            document.getElementById('ocr-result-form').style.display = 'none';
+
             startBarcodeScanner();
         } else {
             tabBarcode.classList.remove('active');
             tabOcr.classList.add('active');
             reader.style.display = 'none';
             ocrFrame.style.display = 'flex';
-            ocrBtn.style.display = 'block';
+            ocrBtnGroup.style.display = 'flex';
             ocrStatus.style.display = 'block';
-            ocrStatus.innerText = "カルテの画面を枠内に合わせて「撮影」を押してください。";
+            ocrStatus.innerText = "「写真を撮影」ボタンを押してカルテを撮影してください。";
             stopBarcodeScanner();
-            startOcrCamera();
+            
+            // OCRの状態リセット
+            document.getElementById('ocr-captured-image').style.display = 'none';
+            document.getElementById('ocr-preview-placeholder').style.display = 'flex';
+            document.getElementById('ocr-analyze-btn').style.display = 'none';
+            document.getElementById('ocr-take-photo-btn').style.display = 'block';
+            document.getElementById('ocr-result-form').style.display = 'none';
+            currentOcrImageSrc = null;
         }
     }
 
     // バーコードリーダー (html5-qrcode) の起動
     function startBarcodeScanner() {
-        // すでにインスタンスがあれば確実に破棄する処理を追加
         if (html5QrcodeScanner) {
              html5QrcodeScanner.clear().then(() => {
                  html5QrcodeScanner = null;
@@ -895,14 +1002,14 @@
         }
         
         function initScanner() {
-            // 修正: 確実に背面カメラを優先起動させる
+            // facingMode: "environment" で背面カメラを指定
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader", { 
                     fps: 10, 
                     qrbox: {width: 250, height: 100},
-                    // 強制的に背面カメラを指定
+                    // facingMode を exact ではなく緩く指定することでエラーを回避しつつ背面を優先
                     videoConstraints: {
-                        facingMode: { exact: "environment" }
+                        facingMode: "environment"
                     }
                 }, false);
             
@@ -924,12 +1031,9 @@
         stopBarcodeScanner();
         document.getElementById('camera-modal').style.display = 'none';
         
-        // 読み取ったテキスト（ID）をセット
         document.getElementById('patient-id').value = decodedText;
-        
         showMessage(`リストバンドを読み取りました。\n患者ID: ${decodedText}`);
         
-        // デモ用: 特定のIDなら名前も自動入力
         if(decodedText.includes("12345") || decodedText === "test") {
              document.getElementById('patient-name').value = "桑名 太郎";
              document.getElementById('procedure-select').value = "kuwana_sekima";
@@ -938,78 +1042,55 @@
     }
 
     function onScanFailure(error) {
-        // 読み取り中は常に呼ばれるので無視
+        // 無視
     }
 
-    // OCR用カメラの起動
-    async function startOcrCamera() {
-        const video = document.getElementById('camera-video');
-        
-        // すでにストリームが存在する場合は一度止める（エラー回避）
-        if (videoStream) {
-            videoStream.getTracks().forEach(track => track.stop());
-        }
-        
-        try {
-            // 修正: 確実に背面カメラを強制指定
-            videoStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: { exact: "environment" } } 
-            });
-            video.srcObject = videoStream;
-        } catch (err) {
-            console.error("Back camera access denied or not available, trying default.", err);
-            // 背面カメラが使えない場合（PCなど）はデフォルトのカメラにフォールバック
-            try {
-                 videoStream = await navigator.mediaDevices.getUserMedia({ 
-                     video: { facingMode: "environment" } // exactを外して緩い条件で再試行
-                 });
-                 video.srcObject = videoStream;
-            } catch(e) {
-                 document.getElementById('ocr-status').innerText = "カメラへのアクセスが拒否されたか、利用できません。";
-            }
-        }
-    }
+    // --- OCR (写真撮影モード) の実装 ---
 
-    function stopOcrCamera() {
-        if (videoStream) {
-            videoStream.getTracks().forEach(track => track.stop());
-            videoStream = null;
+    // input type="file" で撮影または選択された画像を処理する
+    function handleOcrImageCapture(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            currentOcrImageSrc = e.target.result;
+            const imgEl = document.getElementById('ocr-captured-image');
+            imgEl.src = currentOcrImageSrc;
+            
+            // UIの切り替え
+            document.getElementById('ocr-preview-placeholder').style.display = 'none';
+            imgEl.style.display = 'block';
+            
+            document.getElementById('ocr-take-photo-btn').style.display = 'none';
+            document.getElementById('ocr-analyze-btn').style.display = 'block';
+            
+            document.getElementById('ocr-status').innerText = "写真がセットされました。「解析する」を押してください。";
+            document.getElementById('ocr-status').style.color = "#8E8E93";
         }
-        document.getElementById('ocr-scan-line').style.display = 'none';
+        reader.readAsDataURL(file);
     }
 
     // OCRの実行 (Tesseract.js)
     async function executeOCR() {
-        const video = document.getElementById('camera-video');
-        const canvas = document.getElementById('camera-canvas');
+        if (!currentOcrImageSrc) return;
+
         const status = document.getElementById('ocr-status');
         const scanLine = document.getElementById('ocr-scan-line');
-        const captureBtn = document.getElementById('ocr-capture-btn');
+        const analyzeBtn = document.getElementById('ocr-analyze-btn');
         
-        if (!videoStream) return;
-
-        // アニメーションと状態表示の開始
+        // アニメーション開始
         scanLine.style.display = 'block';
         status.style.display = 'block';
-        status.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> AIが文字を解析中... (数秒かかります)";
-        captureBtn.disabled = true;
-        captureBtn.style.backgroundColor = "#8E8E93"; // ボタンの色を変えて「処理中」を明示
+        status.style.color = "#8E8E93";
+        status.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> AIが文字を解析中... (5〜10秒ほどかかります)";
+        analyzeBtn.disabled = true;
+        analyzeBtn.style.backgroundColor = "#8E8E93";
 
-        // videoの現在のフレームをcanvasに描画
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        
-        // --- 修正: コントラスト調整によるOCR精度向上 ---
-        // 描画する前に、画像処理を挟んで文字を読みやすくする（簡易版）
-        ctx.filter = 'contrast(150%) brightness(120%)';
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.filter = 'none'; // リセット
-        
         // Tesseract.jsで日本語と英語(英数字)を認識
         try {
             const { data: { text } } = await Tesseract.recognize(
-                canvas,
+                currentOcrImageSrc,
                 'jpn+eng',
                 { logger: m => console.log(m) } // 進捗をコンソールに出力
             );
@@ -1019,67 +1100,105 @@
 
         } catch (error) {
             console.error("OCR Error:", error);
-            status.innerText = "読み取りに失敗しました。もう一度お試しください。";
+            status.innerText = "読み取りに失敗しました。もう一度撮影からやり直してください。";
+            status.style.color = "#FF3B30";
         } finally {
             scanLine.style.display = 'none';
-            captureBtn.disabled = false;
-            captureBtn.style.backgroundColor = "#34C759";
+            analyzeBtn.disabled = false;
+            analyzeBtn.style.backgroundColor = "#34C759";
         }
     }
 
     // OCRで読み取ったテキストから情報を抽出するロジック
     function processOcrText(text) {
-        // 全角英数字を半角に変換、不要なスペースを削除するなどの前処理
+        // 全角英数字を半角に変換し、改行やスペースを扱いやすくする
         const normalizedText = text.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
             return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
         });
 
-        let foundId = "";
-        let foundName = "";
+        // 抽出用の一時オブジェクト
+        const extracted = {
+            id: "", kana: "", name: "", dob: "", age: "", sex: "", height: "", weight: "", disease: "", operation: ""
+        };
 
-        // --- 修正: 正規表現の強化 (精度の向上) ---
-        // 患者IDの抽出 (例: "ID: 12345", "ID12345", または単なる数字の羅列)
-        // 1DやlDなどの誤認識、No.や患者番号などにも対応
-        const idMatch = normalizedText.match(/(?:ID|ＩＤ|1D|lD|No\.|患者番号)[:：\s]*([0-9]{5,10})/i) || normalizedText.match(/([0-9]{6,10})/);
-        if (idMatch) {
-            foundId = idMatch[1];
-        }
+        // --- 正規表現による各項目の抽出 ---
+        // 実際のカルテのフォーマットに合わせて調整が必要です。
+        // ※「〇〇【抽出したい文字】」のようなパターンを想定
 
-        // 氏名の抽出 (例: "氏名: 桑名 太郎" または "様" の前にある文字列)
-        // 誤認識（氏名が氏名：など）も考慮。「様」「さん」「サン」「殿」をフックにする
-        const nameMatch = normalizedText.match(/(?:氏名|名前|患者名|カナ)[:：\s]*([^\n]+)/) || normalizedText.match(/([^\n]+?)\s*(?:様|殿|さん|サン|ｻﾝ)/);
-        if (nameMatch) {
-            // 余計な記号などを除去
-            foundName = nameMatch[1].replace(/[「」『』【】\[\]]/g, '').trim();
-        }
+        // 【患者ID】
+        const idMatch = normalizedText.match(/(?:ID|ＩＤ|患者ID|患者番号|No\.)\s*【?([A-Za-z0-9-]+)】?/i) || normalizedText.match(/([0-9]{5,10})/);
+        if (idMatch) extracted.id = idMatch[1].trim();
 
-        // 抽出結果の反映
-        if (foundId || foundName) {
-            closeCameraModal();
-            let msg = "カルテから以下の情報を抽出しました。\n";
-            if(foundId) {
-                document.getElementById('patient-id').value = foundId;
-                msg += `ID: ${foundId}\n`;
-            }
-            if(foundName) {
-                document.getElementById('patient-name').value = foundName;
-                msg += `氏名: ${foundName}\n`;
-            }
-            showMessage(msg);
-            
-            // デモ用: 特定のキーワードが含まれていたら術式もセット
-            if (normalizedText.includes("桑名") || normalizedText.includes("整形") || normalizedText.includes("骨折")) {
-                document.getElementById('procedure-select').value = "kuwana_sekima";
-                showPreparationList();
-            }
+        // 【患者カナ】
+        const kanaMatch = normalizedText.match(/(?:カナ|患者カナ)\s*【([^】]+)】/);
+        if (kanaMatch) extracted.kana = kanaMatch[1].trim();
 
-        } else {
-            // 何も見つからなかった場合は、読み取った文字列を表示してユーザーに確認してもらう（エラー表示を見やすく）
-            const status = document.getElementById('ocr-status');
-            status.style.display = 'block';
-            status.style.color = '#FF3B30';
-            status.innerHTML = `情報が見つかりませんでした。<br>もう少し画面に近づけるか、明るい場所で試してください。<br><span style="font-size:10px; color:#8E8E93;">認識テキスト: ${text.substring(0, 30)}...</span>`;
-        }
+        // 【患者氏名】
+        const nameMatch = normalizedText.match(/(?:氏名|名前|患者氏名)\s*【([^】]+)】/);
+        if (nameMatch) extracted.name = nameMatch[1].trim();
+
+        // 【生年月日】
+        const dobMatch = normalizedText.match(/(?:生年月日)\s*【?([0-9]{4}\/[0-9]{1,2}\/[0-9]{1,2}|[A-Za-z]+\s[0-9]{1,2},\s[0-9]{4})】?/);
+        if (dobMatch) extracted.dob = dobMatch[1].trim();
+
+        // 【年齢】
+        const ageMatch = normalizedText.match(/(?:年齢)\s*【?([0-9]{1,3})】?(?:歳)?/);
+        if (ageMatch) extracted.age = ageMatch[1].trim();
+
+        // 【性別】
+        const sexMatch = normalizedText.match(/(?:性別)\s*【?([男女MF])】?/);
+        if (sexMatch) extracted.sex = sexMatch[1].trim();
+
+        // 【身長】
+        const heightMatch = normalizedText.match(/(?:身長)\s*【?([0-9.]+)】?(?:cm)?/i);
+        if (heightMatch) extracted.height = heightMatch[1].trim();
+
+        // 【体重】
+        const weightMatch = normalizedText.match(/(?:体重)\s*【?([0-9.]+)】?(?:kg)?/i);
+        if (weightMatch) extracted.weight = weightMatch[1].trim();
+
+        // 【病名】
+        const diseaseMatch = normalizedText.match(/(?:病名|診断名)[\s・]*【([^】]+)】/);
+        if (diseaseMatch) extracted.disease = diseaseMatch[1].trim();
+
+        // 【術式】
+        const operationMatch = normalizedText.match(/(?:術式|手術名)[\s・]*【([^】]+)】/);
+        if (operationMatch) extracted.operation = operationMatch[1].trim();
+
+        // UIに反映（確認・修正フォームの表示）
+        document.getElementById('ocr-res-id').value = extracted.id;
+        document.getElementById('ocr-res-kana').value = extracted.kana;
+        document.getElementById('ocr-res-name').value = extracted.name;
+        document.getElementById('ocr-res-dob').value = extracted.dob;
+        document.getElementById('ocr-res-age').value = extracted.age;
+        document.getElementById('ocr-res-sex').value = extracted.sex;
+        document.getElementById('ocr-res-height').value = extracted.height;
+        document.getElementById('ocr-res-weight').value = extracted.weight;
+        document.getElementById('ocr-res-disease').value = extracted.disease;
+        document.getElementById('ocr-res-operation').value = extracted.operation;
+
+        // 写真エリアを隠して結果フォームを表示
+        document.getElementById('ocr-frame').style.display = 'none';
+        document.getElementById('ocr-btn-group').style.display = 'none';
+        document.getElementById('ocr-status').style.display = 'none';
+        document.getElementById('ocr-result-form').style.display = 'block';
+    }
+
+    // 確認画面から本番の入力欄へ反映
+    function applyOcrResult() {
+        document.getElementById('patient-id').value = document.getElementById('ocr-res-id').value;
+        document.getElementById('patient-kana').value = document.getElementById('ocr-res-kana').value;
+        document.getElementById('patient-name').value = document.getElementById('ocr-res-name').value;
+        document.getElementById('patient-dob').value = document.getElementById('ocr-res-dob').value;
+        document.getElementById('patient-age').value = document.getElementById('ocr-res-age').value;
+        document.getElementById('patient-sex').value = document.getElementById('ocr-res-sex').value;
+        document.getElementById('patient-height').value = document.getElementById('ocr-res-height').value;
+        document.getElementById('patient-weight').value = document.getElementById('ocr-res-weight').value;
+        document.getElementById('patient-disease').value = document.getElementById('ocr-res-disease').value;
+        document.getElementById('patient-operation').value = document.getElementById('ocr-res-operation').value;
+
+        closeCameraModal();
+        showMessage("患者情報を自動入力しました。");
     }
 
 
@@ -1485,4 +1604,4 @@
 </script>
 
 </body>
-</html>,document_type:HTML,title:麻酔準備ナビ＆計算アシスト (カメラ機能強化版)}
+</html>,document_type:HTML,title:麻酔準備ナビ＆計算アシスト (完全最新版)}

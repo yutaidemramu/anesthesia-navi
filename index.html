@@ -337,9 +337,7 @@
         .monitor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
         .monitor-item { background-color: #1C1C1E; padding: 24px; border-radius: 16px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: relative; cursor: pointer; transition: background-color 0.2s; }
         .monitor-item:hover { background-color: #2C2C2E; }
-        
-        /* === アクション項目もクリック(編集)可能にする === */
-        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} 
+        .monitor-item.action { grid-column: 1 / -1; background-color: rgba(255, 59, 48, 0.1); border-color: rgba(255, 59, 48, 0.3); padding: 30px; cursor: pointer;} /* アクションはクリックさせない想定 */
         .monitor-item.action:hover { background-color: rgba(255, 59, 48, 0.2); } 
 
         .monitor-label { font-size: 16px; color: #8E8E93; font-weight: 600; margin-bottom: 8px; letter-spacing: 1px; width: 100%; display: flex; justify-content: space-between; align-items: center;}
@@ -881,9 +879,21 @@
 
     // バーコードリーダー (html5-qrcode) の起動
     function startBarcodeScanner() {
-        if (!html5QrcodeScanner) {
-            // QR/バーコード全般を許可する設定
-            // 修正: facingMode: "environment" を指定して背面カメラを強制
+        // すでにインスタンスがあれば確実に破棄する処理を追加
+        if (html5QrcodeScanner) {
+             html5QrcodeScanner.clear().then(() => {
+                 html5QrcodeScanner = null;
+                 initScanner();
+             }).catch(err => {
+                 console.error("Scanner clear failed", err);
+                 initScanner();
+             });
+        } else {
+             initScanner();
+        }
+        
+        function initScanner() {
+             // facingMode: "environment" で背面カメラを強制
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader", { 
                     fps: 10, 
@@ -931,15 +941,21 @@
     // OCR用カメラの起動
     async function startOcrCamera() {
         const video = document.getElementById('camera-video');
+        
+        // すでにストリームが存在する場合は一度止める（エラー回避）
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+        }
+        
         try {
-            // 修正: facingMode: "environment" で背面カメラを指定
+            // 背面カメラを強制指定
             videoStream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: { exact: "environment" } } 
             });
             video.srcObject = videoStream;
         } catch (err) {
             console.error("Back camera access denied or not available, trying default.", err);
-            // 背面カメラが使えない場合（PCなど）はデフォルトカメラを使用
+            // 背面カメラが使えない場合（PCなど）はデフォルトのカメラにフォールバック
             try {
                  videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
                  video.srcObject = videoStream;
@@ -977,7 +993,8 @@
         const ctx = canvas.getContext('2d');
         
         // --- 修正: コントラスト調整によるOCR精度向上 ---
-        // 描画する前に、画像処理を挟んで文字を読みやすくする
+        // 描画する前に、画像処理を挟んで文字を読みやすくする（簡易版）
+        // Tesseractの認識精度向上のための前処理
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
         // Tesseract.jsで日本語と英語(英数字)を認識
@@ -1012,6 +1029,7 @@
 
         // --- 修正: 正規表現の強化 (精度の向上) ---
         // 患者IDの抽出 (例: "ID: 12345", "ID12345", または単なる数字の羅列)
+        // 1DやlDなどの誤認識にも対応
         const idMatch = normalizedText.match(/(?:ID|ＩＤ|1D|lD)[:：\s]*([0-9]{5,10})/i) || normalizedText.match(/([0-9]{6,10})/);
         if (idMatch) {
             foundId = idMatch[1];

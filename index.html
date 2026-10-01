@@ -152,7 +152,7 @@
         .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #1C1C1E; }
         body.mode-monitor .modal-title { color: #FFF; }
         
-        /* 薬剤画像のサイズ調整。重要: object-fit で画像の歪みを防止 */
+        /* 薬剤画像のスタイル修正 */
         .modal-image { width: 100%; max-height: 400px; object-fit: contain; border-radius: 8px; background-color: #E5E5EA; display: none; }
         body.mode-monitor .modal-image { background-color: #2C2C2E; }
         
@@ -167,14 +167,35 @@
         .patient-input-item label { font-size: 12px; margin-bottom: 4px; color: #8E8E93; }
         .patient-input-item input, .patient-input-item select { margin-bottom: 0; padding: 10px; font-size: 14px; }
         
+        /* 診療科タブ（患者情報入力用） */
         .dept-tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 8px; }
         .dept-tab-btn { flex: 0 0 auto; padding: 8px 16px; border-radius: 20px; background-color: #E5E5EA; color: #8E8E93; font-weight: 600; font-size: 13px; border: none; cursor: pointer; transition: all 0.2s; }
         .dept-tab-btn.active { background-color: #007AFF; color: #FFF; }
-        .selection-group { margin-bottom: 12px; text-align: left; }
         
+        .selection-group { margin-bottom: 12px; text-align: left; }
         .transcript-area { width: 100%; height: 80px; font-size: 12px; margin-bottom: 12px; resize: vertical; }
+
         .hidden { display: none !important; }
+
+        /* カメラ(バーコード/OCR)スキャナ用UI */
+        .scanner-frame { width: 100%; background-color: #000; border-radius: 12px; margin-bottom: 16px; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 300px; }
+        #camera-video { width: 100%; height: 100%; object-fit: contain; }
+        #camera-canvas { display: none; }
+        .scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border: 2px solid rgba(52, 199, 89, 0.5); box-sizing: border-box; }
+        .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background-color: #34C759; box-shadow: 0 0 10px #34C759; animation: scan 2.5s ease-in-out infinite; display: none; }
+        @keyframes scan { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        .scanner-tabs { display: flex; margin-bottom: 12px; background-color: #E5E5EA; border-radius: 8px; padding: 2px; }
+        body.mode-monitor .scanner-tabs { background-color: #2C2C2E; }
+        .scan-tab-btn { flex: 1; padding: 8px; font-size: 13px; font-weight: 600; border: none; background: transparent; cursor: pointer; border-radius: 6px; color: #8E8E93; }
+        .scan-tab-btn.active { background-color: #FFF; color: #1C1C1E; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        body.mode-monitor .scan-tab-btn.active { background-color: #48484A; color: #FFF; }
     </style>
+    
+    <!-- バーコードリーダー用ライブラリ (html5-qrcode) -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- OCR用ライブラリ (Tesseract.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
 </head>
 <body class="mode-preparation">
 
@@ -196,9 +217,12 @@
             <div class="card" id="patient-info-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <h2 style="margin: 0; font-size: 16px;"><i class="fa-solid fa-user"></i> 患者情報入力</h2>
+                    <button class="action-btn" style="width: auto; padding: 6px 12px; background-color: #34C759; font-size: 13px;" onclick="openCameraModal()">
+                        <i class="fa-solid fa-camera"></i> カメラ読取
+                    </button>
                 </div>
                 
-                <textarea id="transcript-input" class="transcript-area" placeholder="ここに電子カルテ等からコピーした患者情報のテキストを貼り付け、「抽出」を押してください。"></textarea>
+                <textarea id="transcript-input" class="transcript-area" placeholder="ここにカメラで読み取ったテキストが入ります。直接貼り付けて「抽出」を押すこともできます。"></textarea>
                 <button class="action-btn" style="background-color: #FF9500; font-size: 13px; margin-bottom: 16px;" onclick="extractFromTranscript()">
                     <i class="fa-solid fa-wand-magic-sparkles"></i> 上のテキストから情報を抽出
                 </button>
@@ -321,6 +345,7 @@
                         <div class="monitor-label"><span>体温低下 アラート</span><i class="fa-solid fa-pen" style="color: #48484A;"></i></div>
                         <div id="dash-temp" class="monitor-value">---</div>
                     </div>
+                    <!-- アクション項目の編集 -->
                     <div class="monitor-item action" onclick="openEditModal('dash-action', '血圧低下時のアクション')">
                         <div class="monitor-label" style="color: #FF3B30 !important; margin-bottom: 12px;">
                             <span>血圧低下時のアクション</span>
@@ -330,6 +355,7 @@
                     </div>
                 </div>
                 
+                <!-- 特記事項・追記コメントエリア -->
                 <div class="dash-note-container">
                     <div class="dash-note-label"><i class="fa-solid fa-comment-medical"></i> 特記事項・変更履歴</div>
                     <ul id="dash-note-list" class="dash-note-list">
@@ -342,7 +368,7 @@
                 </div>
             </div>
 
-            <!-- 準備アイテムリスト -->
+            <!-- 準備アイテムリスト (白画面時のみ表示) -->
             <div id="result-area" style="display: none;">
                 <div class="card" id="prep-list-card">
                     <h2 id="result-title" style="font-size: 18px; border-bottom: 2px solid #E5E5EA; padding-bottom: 12px; margin-bottom: 10px;"></h2>
@@ -458,6 +484,7 @@
                     <button class="template-btn" onclick="toggleTemplateForm('anesthesia-instruction')"><i class="fa-solid fa-file-medical"></i> 麻酔支援CE指示テンプレートを展開</button>
                 </div>
 
+                <!-- 麻酔支援CE指示 テンプレートフォーム -->
                 <div id="template-anesthesia-instruction" class="template-form">
                     <div class="template-form-row">
                         <label>麻酔科医</label>
@@ -575,11 +602,40 @@
     </div>
 </div>
 
+<!-- カメラ連携(バーコード/OCR) モーダル -->
+<div id="camera-modal" class="modal-overlay" onclick="closeCameraModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-title"><i class="fa-solid fa-camera"></i> 患者情報の読取</div>
+        
+        <div class="scanner-tabs">
+            <button class="scan-tab-btn active" id="tab-barcode" onclick="switchScanMode('barcode')">リストバンド (バーコード)</button>
+            <button class="scan-tab-btn" id="tab-ocr" onclick="switchScanMode('ocr')">カルテ (文字読み取り)</button>
+        </div>
+
+        <div class="scanner-frame" id="reader">
+            <!-- バーコード用描画エリア -->
+        </div>
+
+        <div class="scanner-frame" id="ocr-frame" style="display: none;">
+            <video id="camera-video" autoplay playsinline></video>
+            <canvas id="camera-canvas"></canvas>
+            <div class="scanner-overlay"></div>
+            <div class="scanner-line" id="ocr-scan-line"></div>
+        </div>
+        
+        <div id="ocr-status" style="font-size: 13px; color: #8E8E93; margin-bottom: 12px; display: none;"></div>
+
+        <button class="action-btn" id="ocr-capture-btn" style="background-color: #34C759; display: none;" onclick="executeOCR()">文字を読み取ってテキストエリアに入れる</button>
+        <button class="modal-close" onclick="closeCameraModal()">キャンセルして閉じる</button>
+    </div>
+</div>
+
 <script>
     // 状態管理
     let isMonitorMode = false;
     let currentInfoDeptId = 'dept-urology';
 
+    // カスタムメッセージ表示関数
     function showMessage(text) {
         document.getElementById("msg-modal-text").innerText = text;
         document.getElementById("msg-modal").style.display = "flex";
@@ -620,6 +676,7 @@
         }
     };
 
+    // 初期化処理
     window.onload = function() {
         initPatientInfoDept();
     };
@@ -637,9 +694,11 @@
         }
     }
 
+    // 患者情報カード内の診療科タブ切り替え
     function switchPatientInfoDept(deptId) {
         document.querySelectorAll('.dept-tab-btn').forEach(el => el.classList.remove('active'));
         event.currentTarget.classList.add('active');
+        
         currentInfoDeptId = deptId;
         
         const diseaseSelect = document.getElementById("info-disease-select");
@@ -658,12 +717,14 @@
         }
     }
 
+    // 患者情報カード内の病名が選ばれたとき
     function updateInfoOperationOptions() {
         const diseaseSelect = document.getElementById("info-disease-select");
         const operationSelect = document.getElementById("info-operation-select");
         const disease = diseaseSelect.value;
         
         operationSelect.innerHTML = '<option value="">-- 術式を選択 --</option>';
+        
         document.getElementById("patient-disease").value = disease;
         document.getElementById("patient-operation").value = "";
         
@@ -678,6 +739,7 @@
         }
     }
 
+    // 患者情報カード内の術式が選ばれたとき
     function applyInfoOperation() {
         const operation = document.getElementById("info-operation-select").value;
         if(operation) {
@@ -686,14 +748,15 @@
     }
 
     // --- データベース (準備ナビ用) ---
+    // ※ ここで画像ファイル名を指定の通りに設定しています。
     const database = {
         "kuwana_zenshin": {
             title: "桑名Dr / 泌尿器：膀胱癌 (全身麻酔)",
             items: [
-                { category: "鎮静薬", name: "プロポフォール", spec: "20ml (20ccロック+18G)", kinko: false, imgUrl: "images/propofol.jpg", why: "寝かせるため。起きている状態で筋弛緩すると金縛りにあった様になってしまうため注意。" },
-                { category: "筋弛緩薬", name: "ロクロニウム", spec: "50mg/5.0ml (5ccロック+18G)", kinko: true, imgUrl: "images/rocuronium.jpg", why: "自発呼吸も完全に止まるため人工呼吸器管理が必要。効果が出るのが遅い。" },
-                { category: "鎮痛薬", name: "レミフェンタニル", spec: "2mg/20ml (20ccロック＋18G)", kinko: true, imgUrl: "images/remifentanil.jpg", why: "シリンジポンプで持続投与するため、赤くて細いエクステンションをつける。" },
-                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "images/ephedrine.jpg", why: "生食で希釈し4mg/1mlにする。NIBPのmean60を下回ったら使用。" },
+                { category: "鎮静薬", name: "プロポフォール", spec: "20ml (20ccロック+18G)", kinko: false, imgUrl: "プロポフォール.jpg", why: "寝かせるため。起きている状態で筋弛緩すると金縛りにあった様になってしまうため注意。" },
+                { category: "筋弛緩薬", name: "ロクロニウム", spec: "50mg/5.0ml (5ccロック+18G)", kinko: true, imgUrl: "ロクロニウム.jpg", why: "自発呼吸も完全に止まるため人工呼吸器管理が必要。効果が出るのが遅い。" },
+                { category: "鎮痛薬", name: "レミフェンタニル", spec: "2mg/20ml (20ccロック＋18G)", kinko: true, imgUrl: "remifentanil.jpg", why: "シリンジポンプで持続投与するため、赤くて細いエクステンションをつける。" },
+                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "エフェドリン.jpg", why: "生食で希釈し4mg/1mlにする。NIBPのmean60を下回ったら使用。" },
                 { category: "気道確保", name: "アイゲル(LMA)", spec: "サイズ：#4", kinko: false, imgUrl: null, why: "男性は4、女性は3が目安。" }
             ]
         },
@@ -702,16 +765,16 @@
             items: [
                 { category: "麻酔針", name: "25G ペンシル針", spec: "L3/4 para", kinko: false, imgUrl: null, why: "ペンシル型は硬膜の繊維を「押し広げて」進むため、硬膜穿刺後頭痛（PDPH）が発生しにくい。" },
                 { category: "輸液", name: "フィジオ（酢酸リンゲル液）", spec: "500ml", kinko: false, imgUrl: null, why: "末梢組織でも素早く代謝されてアルカリに変わる「酢酸」を含み、安全に酸塩基平衡を補正できる。" },
-                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "images/ephedrine.jpg", why: "生食で希釈し4mg/1mlにする。脊麻による血圧低下時に使用。" }
+                { category: "昇圧薬", name: "エフェドリン", spec: "10ml (10ccロック+18G)", kinko: false, imgUrl: "エフェドリン.jpg", why: "生食で希釈し4mg/1mlにする。脊麻による血圧低下時に使用。" }
             ]
         }
     };
 
-    // --- テキストコピペから抽出する関数 (正規表現のみ) ---
+    // --- テキストから抽出する関数 (正規表現のみ) ---
     function extractFromTranscript() {
         const text = document.getElementById('transcript-input').value;
         if(!text.trim()) {
-            showMessage("テキストが入力されていません。電子カルテの情報をコピーして貼り付けてください。");
+            showMessage("テキストが入力されていません。電子カルテの情報をコピーして貼り付けるか、カメラで読み取ってください。");
             return;
         }
 
@@ -763,10 +826,183 @@
         document.getElementById('patient-height').value = extracted.height;
         document.getElementById('patient-weight').value = extracted.weight;
 
+        // 入力エリアをクリアして通知
         document.getElementById('transcript-input').value = "";
         showMessage("テキストから患者情報を抽出・入力しました。\n内容を確認してください。");
     }
 
+    // --- カメラ連携 (バーコード & OCR) 実装 ---
+    let html5QrcodeScanner = null;
+    let videoStream = null;
+    let scanMode = 'barcode'; 
+
+    function openCameraModal() {
+        document.getElementById('camera-modal').style.display = 'flex';
+        switchScanMode('barcode'); 
+    }
+
+    function closeCameraModal(event) {
+        document.getElementById('camera-modal').style.display = 'none';
+        stopBarcodeScanner();
+        stopOcrCamera();
+    }
+
+    function switchScanMode(mode) {
+        scanMode = mode;
+        const tabBarcode = document.getElementById('tab-barcode');
+        const tabOcr = document.getElementById('tab-ocr');
+        const reader = document.getElementById('reader');
+        const ocrFrame = document.getElementById('ocr-frame');
+        const ocrBtn = document.getElementById('ocr-capture-btn');
+        const ocrStatus = document.getElementById('ocr-status');
+
+        if (mode === 'barcode') {
+            tabBarcode.classList.add('active');
+            tabOcr.classList.remove('active');
+            reader.style.display = 'block';
+            ocrFrame.style.display = 'none';
+            ocrBtn.style.display = 'none';
+            ocrStatus.style.display = 'none';
+            stopOcrCamera();
+            startBarcodeScanner();
+        } else {
+            tabBarcode.classList.remove('active');
+            tabOcr.classList.add('active');
+            reader.style.display = 'none';
+            ocrFrame.style.display = 'flex';
+            ocrBtn.style.display = 'block';
+            ocrStatus.style.display = 'block';
+            ocrStatus.innerText = "文字がはっきり映るように調整し、「読み取る」ボタンを押してください。";
+            stopBarcodeScanner();
+            startOcrCamera();
+        }
+    }
+
+    // バーコードリーダーの起動
+    function startBarcodeScanner() {
+        if (html5QrcodeScanner) {
+             html5QrcodeScanner.clear().then(() => {
+                 html5QrcodeScanner = null;
+                 initScanner();
+             }).catch(err => {
+                 initScanner();
+             });
+        } else {
+             initScanner();
+        }
+        
+        function initScanner() {
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader", { 
+                    fps: 10, 
+                    qrbox: {width: 250, height: 100},
+                    // 背面カメラ強制
+                    videoConstraints: {
+                        facingMode: { exact: "environment" }
+                    }
+                }, false);
+            
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
+    }
+
+    function stopBarcodeScanner() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear().catch(error => {});
+            html5QrcodeScanner = null;
+        }
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+        stopBarcodeScanner();
+        document.getElementById('camera-modal').style.display = 'none';
+        document.getElementById('patient-id').value = decodedText;
+        showMessage(`リストバンドを読み取りました。\n患者ID: ${decodedText}`);
+    }
+
+    function onScanFailure(error) {}
+
+    // OCR用カメラの起動
+    async function startOcrCamera() {
+        const video = document.getElementById('camera-video');
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+        }
+        
+        try {
+            videoStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: { exact: "environment" } } 
+            });
+            video.srcObject = videoStream;
+        } catch (err) {
+            try {
+                 videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                 video.srcObject = videoStream;
+            } catch(e) {
+                 document.getElementById('ocr-status').innerText = "カメラへのアクセスが拒否されました。";
+            }
+        }
+    }
+
+    function stopOcrCamera() {
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+        }
+        document.getElementById('ocr-scan-line').style.display = 'none';
+    }
+
+    // カメラで撮影し、文字列を抽出してテキストエリアに入れる
+    async function executeOCR() {
+        const video = document.getElementById('camera-video');
+        const canvas = document.getElementById('camera-canvas');
+        const status = document.getElementById('ocr-status');
+        const scanLine = document.getElementById('ocr-scan-line');
+        const captureBtn = document.getElementById('ocr-capture-btn');
+        
+        if (!videoStream) return;
+
+        scanLine.style.display = 'block';
+        status.style.color = "#8E8E93";
+        status.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> AIが文字を解析中... (数秒かかります)";
+        captureBtn.disabled = true;
+        captureBtn.style.backgroundColor = "#8E8E93";
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // 精度向上のための簡易的な画像処理 (白黒・コントラスト強め)
+        ctx.filter = 'grayscale(100%) contrast(150%) brightness(120%)';
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none';
+
+        try {
+            const { data: { text } } = await Tesseract.recognize(
+                canvas,
+                'jpn+eng',
+                { logger: m => console.log(m) }
+            );
+
+            console.log("OCR Result:", text);
+            
+            // AIに判定させず、読み取った文字をそのままテキストエリアに入れる
+            document.getElementById('transcript-input').value = text;
+            
+            closeCameraModal();
+            showMessage("カメラからテキストを読み込みました。「コピペテキストから抽出」ボタンを押して振り分けてください。");
+
+        } catch (error) {
+            status.innerText = "読み取りに失敗しました。もう一度お試しください。";
+            status.style.color = "#FF3B30";
+        } finally {
+            scanLine.style.display = 'none';
+            captureBtn.disabled = false;
+            captureBtn.style.backgroundColor = "#34C759";
+        }
+    }
+
+    // 準備リスト表示
     function showPreparationList() {
         const selectedValue = document.getElementById("procedure-select").value;
         const resultList = document.getElementById("result-list");
@@ -780,6 +1016,7 @@
         const data = database[selectedValue];
         document.getElementById("result-title").textContent = data.title;
 
+        // リスト生成
         data.items.forEach((item, index) => {
             const kinkoMark = item.kinko ? '<span class="item-badge">金庫管理</span>' : '';
             const whyId = `why-${index}`;
@@ -805,6 +1042,7 @@
         document.getElementById("result-area").style.display = "block";
     }
 
+    // --- モード切替 ---
     function toggleMonitorMode(toMonitor) {
         if(toMonitor) {
             document.body.classList.add('mode-monitor');
@@ -815,6 +1053,7 @@
         }
     }
 
+    // --- 術中モニタ インライン編集ロジック ---
     function openEditModal(targetId, title) {
         const currentValue = document.getElementById(targetId).innerText;
         const inputEl = document.getElementById('edit-modal-input');
